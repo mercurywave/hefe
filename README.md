@@ -1,5 +1,6 @@
 # hefe
 
+[GitHub Pages](https://mercurywave.github.io/hefe/)
 
 ## example
 
