@@ -4,7 +4,8 @@ body {
     color: #FFF;
 }
 .dropping textarea{
-    background-color: #524F70;
+    background-color: #646281;
+    transition: background-color 200ms linear;
 }
 textarea{
     resize: none;
