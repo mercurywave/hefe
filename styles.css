@@ -3,3 +3,23 @@ body {
     background-color: #2E2F43;
     color: #FFF;
 }
+textarea{
+    resize: none;
+    position: fixed;
+    left:0; top:0; right:0; bottom:0;
+    padding: 10px;
+    margin: 5px;
+    background-color: #3E3D5F;
+    color: #FFF;
+}
+.txtIn{
+    bottom: 40%;
+    right: 50%;
+}
+.txtOut{
+    bottom: 40%;
+    left: 50%;
+}
+.txtEd{ 
+    top: 60%;
+}
