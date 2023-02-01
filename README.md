@@ -4,6 +4,7 @@
 
 ## example
 
+```ts
 Split("|")
 For
     a := Split(",") >> Idx(3)
@@ -11,3 +12,4 @@ For
 b := Sum(a)
 Filter
     Split(",") >> Idx(1) >> Contains("foo")
+```
