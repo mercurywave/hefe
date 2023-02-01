@@ -1,4 +1,6 @@
-class Workspace {
+import { Parser } from "./interpreter.js";
+
+export class Workspace {
     
     private _paneMain : HTMLElement;
     private _txtInput : HTMLTextAreaElement;
@@ -22,6 +24,7 @@ class Workspace {
     }
 
     public process(){
+        const a = new Parser();
         console.log("woot!");
     }
 }

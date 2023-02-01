@@ -1,24 +1,25 @@
-var Workspace = /** @class */ (function () {
-    function Workspace(pane) {
+import { Parser } from "./interpreter.js";
+export class Workspace {
+    constructor(pane) {
         this._paneMain = pane;
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
     }
-    Workspace.prototype.makeTextArea = function (className, hookEvents) {
-        var area = document.createElement("textarea");
+    makeTextArea(className, hookEvents) {
+        let area = document.createElement("textarea");
         area.setAttribute("spellcheck", "false");
         area.className = className;
         area.addEventListener("input", this.process);
         return area;
-    };
-    Workspace.prototype.process = function () {
+    }
+    process() {
+        const a = new Parser();
         console.log("woot!");
-    };
-    return Workspace;
-}());
-var _instance;
-document.addEventListener("DOMContentLoaded", function () {
+    }
+}
+let _instance;
+document.addEventListener("DOMContentLoaded", () => {
     _instance = new Workspace(document.getElementById("paneMain"));
 });
 //# sourceMappingURL=main.js.map
