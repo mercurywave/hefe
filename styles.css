@@ -3,6 +3,9 @@ body {
     background-color: #2E2F43;
     color: #FFF;
 }
+.dropping textarea{
+    background-color: #524F70;
+}
 textarea{
     resize: none;
     position: fixed;

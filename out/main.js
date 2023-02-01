@@ -1,16 +1,18 @@
 export class Workspace {
     constructor(pane) {
         this._paneMain = pane;
+        pane.addEventListener("dragover", () => pane.classList.add("dropping"), false);
+        pane.addEventListener("dragleave", () => pane.classList.remove("dropping"), false);
+        pane.addEventListener("drop", () => pane.classList.remove("dropping"), false);
         pane.addEventListener("drop", event => this.onFileDropped(event));
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
-        this._txtEditor.value = `
-let a = all;
-let b = split;
-const c = b.map(l => "-" + l);
-return c.join("\\n");
-        `;
+        let prevCode = localStorage.getItem("jsCode");
+        if (prevCode == null || prevCode == "") {
+            prevCode = 'let a = all; \nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");';
+        }
+        this._txtEditor.value = prevCode;
     }
     onFileDropped(ev) {
         if (ev.dataTransfer.items) {
@@ -43,6 +45,7 @@ return c.join("\\n");
         //console.log("woot!");
         try {
             const code = this._txtEditor.value;
+            localStorage.setItem("jsCode", code);
             const exec = new Function("all", "split", code);
             const all = this._txtInput.value;
             const split = all.split("\n");
