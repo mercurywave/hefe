@@ -1,6 +1,14 @@
 export class Workspace {
     constructor(pane) {
         this._paneMain = pane;
+        this._lblFile = pane.appendChild(document.createElement("h1"));
+        this._lblFile.textContent = "Hefe - brew up a transform";
+        this._paneToolbar = pane.appendChild(document.createElement("div"));
+        this._paneToolbar.className = "toolbar";
+        this._btCopy = this._paneToolbar.appendChild(document.createElement("input"));
+        this._btCopy.type = "button";
+        this._btCopy.value = "Copy to Clipboard";
+        this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
@@ -9,25 +17,6 @@ export class Workspace {
             prevCode = 'let a = all; \nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");';
         }
         this._txtEditor.value = prevCode;
-    }
-    onFileDropped(ev, target) {
-        if (ev.dataTransfer.items) {
-            for (const item of ev.dataTransfer.items) {
-                if (item.kind === 'file') {
-                    ev.preventDefault();
-                    this.readFile(item.getAsFile(), target);
-                }
-            }
-        }
-    }
-    readFile(file, target) {
-        console.log(file);
-        let reader = new FileReader();
-        reader.onload = ev => {
-            target.value = reader.result.toString();
-            this.process();
-        };
-        reader.readAsText(file);
     }
     makeTextArea(className, hookEvents) {
         let area = document.createElement("textarea");
@@ -51,6 +40,26 @@ export class Workspace {
         });
         return area;
     }
+    onFileDropped(ev, target) {
+        if (ev.dataTransfer.items) {
+            for (const item of ev.dataTransfer.items) {
+                if (item.kind === 'file') {
+                    ev.preventDefault();
+                    this.readFile(item.getAsFile(), target);
+                }
+            }
+        }
+    }
+    readFile(file, target) {
+        console.log(file);
+        let reader = new FileReader();
+        reader.onload = ev => {
+            target.value = reader.result.toString();
+            this.process();
+            this._lblFile.textContent = "Hefe - " + file.name;
+        };
+        reader.readAsText(file);
+    }
     process() {
         //const a = new Parser();
         try {
@@ -65,6 +74,12 @@ export class Workspace {
         catch (err) {
             this.ShowError(err);
         }
+    }
+    copyToClipboard(textarea) {
+        textarea.select();
+        textarea.setSelectionRange(0, 9999999999);
+        navigator.clipboard.writeText(textarea.value);
+        console.log("copied to clipboard");
     }
     ShowError(err) {
         this._txtOutput.value = "" + err;

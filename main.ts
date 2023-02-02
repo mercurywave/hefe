@@ -3,6 +3,9 @@ import { Parser } from "./interpreter.js";
 export class Workspace {
     
     private _paneMain : HTMLElement;
+    private _paneToolbar : HTMLElement;
+    private _lblFile : HTMLHeadingElement;
+    private _btCopy : HTMLInputElement;
     private _txtInput : HTMLTextAreaElement;
     private _txtOutput : HTMLTextAreaElement;
     private _txtEditor : HTMLTextAreaElement;
@@ -10,6 +13,17 @@ export class Workspace {
     public constructor(pane: HTMLElement)
     {
         this._paneMain = pane;
+        this._lblFile = pane.appendChild(document.createElement("h1"));
+        this._lblFile.textContent = "Hefe - brew up a transform";
+        
+        this._paneToolbar = pane.appendChild(document.createElement("div"));
+        this._paneToolbar.className = "toolbar";
+
+        this._btCopy = this._paneToolbar.appendChild(document.createElement("input"));
+        this._btCopy.type = "button";
+        this._btCopy.value = "Copy to Clipboard";
+        this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
+
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
@@ -19,27 +33,6 @@ export class Workspace {
             prevCode = 'let a = all; \nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
         }
         this._txtEditor.value = prevCode;
-    }
-
-    private onFileDropped(ev: DragEvent, target: HTMLTextAreaElement){
-        if(ev.dataTransfer.items){
-            for (const item of ev.dataTransfer.items) {
-                if (item.kind === 'file') {
-                    ev.preventDefault();
-                    this.readFile(item.getAsFile(), target);
-                }
-            }
-        }
-    }
-
-    private readFile(file: File, target: HTMLTextAreaElement){
-        console.log(file);
-        let reader = new FileReader();
-        reader.onload = ev => {
-            target.value = reader.result.toString();
-            this.process();
-        };
-        reader.readAsText(file);
     }
 
     private makeTextArea(className:string, hookEvents: boolean) {
@@ -65,6 +58,28 @@ export class Workspace {
         return area;
     }
 
+    private onFileDropped(ev: DragEvent, target: HTMLTextAreaElement){
+        if(ev.dataTransfer.items){
+            for (const item of ev.dataTransfer.items) {
+                if (item.kind === 'file') {
+                    ev.preventDefault();
+                    this.readFile(item.getAsFile(), target);
+                }
+            }
+        }
+    }
+
+    private readFile(file: File, target: HTMLTextAreaElement){
+        console.log(file);
+        let reader = new FileReader();
+        reader.onload = ev => {
+            target.value = reader.result.toString();
+            this.process();
+            this._lblFile.textContent = "Hefe - " + file.name;
+        };
+        reader.readAsText(file);
+    }
+
     public process(){
         //const a = new Parser();
         try{
@@ -79,6 +94,14 @@ export class Workspace {
         catch(err){
             this.ShowError(err);
         }
+    }
+
+    private copyToClipboard(textarea: HTMLTextAreaElement){
+        textarea.select();
+        textarea.setSelectionRange(0, 9999999999);
+
+        navigator.clipboard.writeText(textarea.value);
+        console.log("copied to clipboard");
     }
 
     private ShowError(err){
