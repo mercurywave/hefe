@@ -30,7 +30,7 @@ export class Workspace {
 
         let prevCode = localStorage.getItem("jsCode");
         if(prevCode == null || prevCode == ""){
-            prevCode = 'let a = all; \nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
+            prevCode = 'let a = all;\nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
         }
         this._txtEditor.value = prevCode;
     }
