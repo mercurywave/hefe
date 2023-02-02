@@ -47,7 +47,7 @@ export class Workspace {
         area.setAttribute("spellcheck", "false");
         area.className = className;
         if (hookEvents){
-            area.addEventListener("input", () => this.process());
+            area.addEventListener("input", () => setTimeout(() => this.process(), 250));
             area.addEventListener("dragover", () => area.classList.add("dropping"), false);
             area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
             area.addEventListener("drop", () => area.classList.remove("dropping"), false);
@@ -67,7 +67,6 @@ export class Workspace {
 
     public process(){
         //const a = new Parser();
-        //console.log("woot!");
         try{
             const code = this._txtEditor.value;
             localStorage.setItem("jsCode", code);
