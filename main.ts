@@ -53,6 +53,15 @@ export class Workspace {
             area.addEventListener("drop", () => area.classList.remove("dropping"), false);
             area.addEventListener("drop", event => this.onFileDropped(event, area));
         }
+        area.addEventListener("keydown", e => { // need to allow inserting tabs
+            if(e.key == 'Tab') {
+                e.preventDefault();
+                var start = area.selectionStart;
+                var end = area.selectionEnd;
+                area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
+                area.selectionStart = area.selectionEnd = start + 1;
+            }
+        });
         return area;
     }
 
