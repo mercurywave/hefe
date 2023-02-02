@@ -1,10 +1,6 @@
 export class Workspace {
     constructor(pane) {
         this._paneMain = pane;
-        pane.addEventListener("dragover", () => pane.classList.add("dropping"), false);
-        pane.addEventListener("dragleave", () => pane.classList.remove("dropping"), false);
-        pane.addEventListener("drop", () => pane.classList.remove("dropping"), false);
-        pane.addEventListener("drop", event => this.onFileDropped(event));
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
@@ -14,21 +10,21 @@ export class Workspace {
         }
         this._txtEditor.value = prevCode;
     }
-    onFileDropped(ev) {
+    onFileDropped(ev, target) {
         if (ev.dataTransfer.items) {
             for (const item of ev.dataTransfer.items) {
                 if (item.kind === 'file') {
                     ev.preventDefault();
-                    this.readFile(item.getAsFile());
+                    this.readFile(item.getAsFile(), target);
                 }
             }
         }
     }
-    readFile(file) {
+    readFile(file, target) {
         console.log(file);
         let reader = new FileReader();
         reader.onload = ev => {
-            this._txtInput.value = reader.result.toString();
+            target.value = reader.result.toString();
             this.process();
         };
         reader.readAsText(file);
@@ -37,7 +33,13 @@ export class Workspace {
         let area = document.createElement("textarea");
         area.setAttribute("spellcheck", "false");
         area.className = className;
-        area.addEventListener("input", () => this.process());
+        if (hookEvents) {
+            area.addEventListener("input", () => this.process());
+            area.addEventListener("dragover", () => area.classList.add("dropping"), false);
+            area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
+            area.addEventListener("drop", () => area.classList.remove("dropping"), false);
+            area.addEventListener("drop", event => this.onFileDropped(event, area));
+        }
         return area;
     }
     process() {

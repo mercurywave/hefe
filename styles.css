@@ -3,7 +3,7 @@ body {
     background-color: #2E2F43;
     color: #FFF;
 }
-.dropping textarea{
+.dropping{
     background-color: #646281;
     transition: background-color 200ms linear;
 }
