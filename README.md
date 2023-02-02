@@ -6,10 +6,27 @@
 
 ```ts
 Split("|")
-For
-    a := Split(",") >> Idx(3)
-// Join
-b := Sum(a)
+b := Sum
+    Piece(",", 3) >> ToInt
 Filter
     Split(",") >> Idx(1) >> Contains("foo")
+Join("\n")
+
+fn Splitter("|")
+    SplitEscaped("|", "\|")
+
+op IntSum
+    Sum
+        Doop 
+        ToInt
+
+pattern Line
+    number
+    ","
+    string
+    ","
+    or
+        escapedString("\"")
+        string
+    ","
 ```
