@@ -15,6 +15,10 @@ textarea{
     margin: 5px;
     background-color: #3E3D5F;
     color: #FFF;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    tab-size: 4;
 }
 .txtIn{
     bottom: 40%;
