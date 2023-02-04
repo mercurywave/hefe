@@ -36,12 +36,16 @@ export var Match;
     Match.sequence = sequence;
     // minimum 1
     function matchWhile(matcher, key) {
+        return matchWhileAt((tokes, idx) => matcher(tokes[idx]), key);
+    }
+    Match.matchWhile = matchWhile;
+    function matchWhileAt(matcher, key) {
         return {
             Optional: false,
             Handler: (t, b) => {
                 let index = 0;
                 for (; index + b < t.length; index++) {
-                    if (!matcher(t[index])) {
+                    if (!matcher(t, b + index)) {
                         break;
                     }
                 }
@@ -49,7 +53,7 @@ export var Match;
             },
         };
     }
-    Match.matchWhile = matchWhile;
+    Match.matchWhileAt = matchWhileAt;
     // test increasingly long sequences - not efficient
     function testSequence(matcher, key) {
         return {

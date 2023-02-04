@@ -37,12 +37,16 @@ export module Match{
 
     // minimum 1
     export function matchWhile<T>(matcher: (toke: T) => boolean, key?: string):SingleMatch<T>{
+        return matchWhileAt((tokes,idx) => matcher(tokes[idx]), key);
+    }
+
+    export function matchWhileAt<T>(matcher: (tokes: T[], idx: number) => boolean, key?: string):SingleMatch<T>{
         return {
             Optional: false,
             Handler: (t,b) =>{
                 let index = 0;
                 for (; index + b < t.length; index++) {
-                    if(!matcher(t[index])) { break; }
+                    if(!matcher(t, b + index)) { break; }
                 }
                 return result(index > 0, b, index, key ?? "while");
             },

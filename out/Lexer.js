@@ -28,7 +28,8 @@ const _symbols = new Syntax()
     .add(token(">>"), true)
     .add(symbols("+-=/*!;\\()"), true)
     .add(number(), true)
-    .add(word(), true);
+    .add(word(), true)
+    .add(literalString(), true);
 function token(match) {
     return pattern(Match.sequence(match.split("")));
 }
@@ -50,5 +51,10 @@ function number() {
             return null;
         return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
     }, "num"));
+}
+function literalString() {
+    return pattern(Match.token("\""), Match.matchWhileAt((tokes, idx) => {
+        return !(tokes[idx] === "\"" && tokes[idx - 1] !== "\\");
+    }), Match.token("\""));
 }
 //# sourceMappingURL=Lexer.js.map

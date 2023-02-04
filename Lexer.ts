@@ -32,6 +32,7 @@ const _symbols = new Syntax<string, boolean>()
     .add(symbols("+-=/*!;\\()"), true)
     .add(number(), true)
     .add(word(), true)
+    .add(literalString(), true)
 ;
 
 function token(match: string):Pattern<string> {
@@ -58,6 +59,15 @@ function number(): Pattern<string> {
             if(test[test.length - 1] === ".") return null;
             return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
         }, "num"));
+}
+function literalString(): Pattern<string>{
+    return pattern(
+        Match.token("\""),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "\"" && tokes[idx-1] !== "\\");
+        }),
+        Match.token("\"")
+    );
 }
 
 export interface LexLine{
