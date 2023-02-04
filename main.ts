@@ -1,4 +1,5 @@
 import { Parser } from "./interpreter.js";
+import { Lexer } from "./Lexer.js";
 
 export class Workspace {
     
@@ -33,6 +34,9 @@ export class Workspace {
             prevCode = 'let a = all;\nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
         }
         this._txtEditor.value = prevCode;
+        setTimeout(() => {
+            this.process();
+        }, 0);
     }
 
     private makeTextArea(className:string, hookEvents: boolean) {
@@ -85,11 +89,17 @@ export class Workspace {
         try{
             const code = this._txtEditor.value;
             localStorage.setItem("jsCode", code);
-            const exec = new Function("all", "split", code);
-            const all = this._txtInput.value;
-            const split = all.split("\n");
-            const ret = exec(all, split);
-            this._txtOutput.value = ret;
+            const lines = code.split("\n");
+
+            const lexed = lines.map(c => {
+                try
+                {
+                    let lex = Lexer.Tokenize(c);
+                    return lex.Tokens;
+                    //return lex.Tokens.toString();
+                } catch(err){return err;}
+            });
+            this._txtOutput.value = lexed.join("\n").toString();
         }
         catch(err){
             this.ShowError(err);
