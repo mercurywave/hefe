@@ -3,25 +3,53 @@ import { Match, Pattern, pattern, PatternResult, SingleMatch, Syntax } from "./p
 
 export class Interpreter{
     static __gen = 0;
-    public static async Process(stream: string, code: IStatement[]): Promise<TransformResult>{
-        let currStep = stream;
+    public static async Process(input: string, code: IStatement[]): Promise<TransformResult>{
+        let currStep = new Stream(input);
         this.__gen++;
         let currGen = this.__gen;
 
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
             if(step == null) return {output: currStep, step: ln - 1};
-            
+            try{
+                console.log(":::");
+                const next = step.process(currStep);
+                currStep = next;
+            } catch(err){
+                console.log(err);
+                return {output: currStep, step: ln};
+            }
             await new Promise(f => setTimeout(f, 10));
             if(currGen != this.__gen) return null;
         }
-        return {output: currStep, step: code.length};
+        return {output: currStep, step: code.length + 1};
     }
 }
 
 export interface TransformResult{
-    output: string;
+    output: Stream;
     step: number;
+}
+
+export class Stream {
+    public text? : string;
+    public array? : Stream[];
+    public num? : number;
+    public constructor(text?: string, array?: Stream[], num?: number){
+        this.text = text;
+        this.array = array;
+        this.num = num;
+    }
+
+    public toDisplayText(nested?:number) : string{
+        if(this.text) {
+            if(nested > 0) return "\"" + this.text + "\"";
+            return this.text;
+        }
+        if(this.num) return "" + this.num;
+        if(this.array) return "[\n" + this.array.map(s => " " + s.toDisplayText(nested + 1)).join(",\n") + "\n]";
+        return "???";
+    }
 }
 
 
@@ -45,16 +73,14 @@ export class Parser{
         while(idx < tokens.Tokens.length){
             let match = _statements.firstPartialMatch(tokens.Tokens, 0);
             if(match == null) return null;
-            idx = match.result.endIndex + 1;
-            if(idx >= tokens.Tokens.length) break;
-            if(tokens[idx] == ">>") idx++;
-            //else if (tokens[idx] == )
-            else return null;
             states.push(match.output(depth, match.result));
+            idx = match.result.endIndex + 1;
+            if(idx < tokens.Tokens.length && tokens[idx] == ">>") idx++;
+            //else if (tokens[idx] == )
         }
         let result: IStatement;
-        if(states.length === 0) result = null;
-        if(states.length === 1) result = states[0];
+        if(states.length == 0) result = null;
+        else if(states.length == 1) result = states[0];
         else result = new SMultiStatement(depth, states);
         return result;
     }
@@ -104,6 +130,7 @@ abstract class IStatement{
     public constructor(depth: number){
         this.tabDepth = depth;
     }
+    public abstract process(stream: Stream) : Stream;
 }
 
 abstract class IExpression{
@@ -156,14 +183,30 @@ function parameterList(optional?: boolean): SingleMatch<string>{
 }
 
 class SMultiStatement extends IStatement{
+    __list : IStatement[];
     public constructor(depth: number, list: IStatement[]){
         super(depth);
+        this.__list = list;
+    }
+    public override process(stream: Stream): Stream {
+        for (let index = 0; index < this.__list.length; index++) {
+            const state = this.__list[index];
+            stream = state.process(stream);
+        }
+        return stream;
     }
 }
 
 class SSplit extends IStatement{
+    __delim: string;
     public constructor(depth: number, parse: PatternResult<string>){
         super(depth);
+        this.__delim = "\n";
+    }
+    public process(stream: Stream): Stream {
+        console.log("???");
+        if(stream.text === null) throw "cannot split stream";
+        return new Stream(null, stream.text.split(this.__delim).map(s => new Stream(s)) );
     }
 }
 

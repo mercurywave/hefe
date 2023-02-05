@@ -1,4 +1,4 @@
-import { Parser } from "./interpreter.js";
+import { Interpreter, Parser } from "./interpreter.js";
 export class Workspace {
     constructor(pane) {
         this._paneMain = pane;
@@ -80,12 +80,19 @@ export class Workspace {
             //     } catch(err){return err;}
             // });
             // this._txtOutput.value = lexed.join("\n").toString();
-            var parse = Parser.Parse(code);
-            console.log(parse);
-            this._txtOutput.value = parse.toString();
+            this.asyncProcess(code);
         }
         catch (err) {
             this.ShowError(err);
+        }
+    }
+    async asyncProcess(code) {
+        var parse = Parser.Parse(code);
+        console.log(parse);
+        let res = await Interpreter.Process(this._txtInput.value, parse);
+        if (res != null) {
+            console.log(res.output);
+            this._txtOutput.value = res.output.toDisplayText();
         }
     }
     copyToClipboard(textarea) {

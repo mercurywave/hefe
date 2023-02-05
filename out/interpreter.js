@@ -1,22 +1,50 @@
 import { Lexer } from "./Lexer.js";
 import { Match, pattern, Syntax } from "./patterns.js";
 export class Interpreter {
-    static async Process(stream, code) {
-        let currStep = stream;
+    static async Process(input, code) {
+        let currStep = new Stream(input);
         this.__gen++;
         let currGen = this.__gen;
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
             if (step == null)
                 return { output: currStep, step: ln - 1 };
+            try {
+                console.log(":::");
+                const next = step.process(currStep);
+                currStep = next;
+            }
+            catch (err) {
+                console.log(err);
+                return { output: currStep, step: ln };
+            }
             await new Promise(f => setTimeout(f, 10));
             if (currGen != this.__gen)
                 return null;
         }
-        return { output: currStep, step: code.length };
+        return { output: currStep, step: code.length + 1 };
     }
 }
 Interpreter.__gen = 0;
+export class Stream {
+    constructor(text, array, num) {
+        this.text = text;
+        this.array = array;
+        this.num = num;
+    }
+    toDisplayText(nested) {
+        if (this.text) {
+            if (nested > 0)
+                return "\"" + this.text + "\"";
+            return this.text;
+        }
+        if (this.num)
+            return "" + this.num;
+        if (this.array)
+            return "[\n" + this.array.map(s => " " + s.toDisplayText(nested + 1)).join(",\n") + "\n]";
+        return "???";
+    }
+}
 export class Parser {
     static Parse(code) {
         const lines = code.split("\n");
@@ -37,20 +65,16 @@ export class Parser {
             let match = _statements.firstPartialMatch(tokens.Tokens, 0);
             if (match == null)
                 return null;
+            states.push(match.output(depth, match.result));
             idx = match.result.endIndex + 1;
-            if (idx >= tokens.Tokens.length)
-                break;
-            if (tokens[idx] == ">>")
+            if (idx < tokens.Tokens.length && tokens[idx] == ">>")
                 idx++;
             //else if (tokens[idx] == )
-            else
-                return null;
-            states.push(match.output(depth, match.result));
         }
         let result;
-        if (states.length === 0)
+        if (states.length == 0)
             result = null;
-        if (states.length === 1)
+        else if (states.length == 1)
             result = states[0];
         else
             result = new SMultiStatement(depth, states);
@@ -138,11 +162,26 @@ function parameterList(optional) {
 class SMultiStatement extends IStatement {
     constructor(depth, list) {
         super(depth);
+        this.__list = list;
+    }
+    process(stream) {
+        for (let index = 0; index < this.__list.length; index++) {
+            const state = this.__list[index];
+            stream = state.process(stream);
+        }
+        return stream;
     }
 }
 class SSplit extends IStatement {
     constructor(depth, parse) {
         super(depth);
+        this.__delim = "\n";
+    }
+    process(stream) {
+        console.log("???");
+        if (stream.text === null)
+            throw "cannot split stream";
+        return new Stream(null, stream.text.split(this.__delim).map(s => new Stream(s)));
     }
 }
 class EIdentifier extends IExpression {
