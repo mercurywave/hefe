@@ -4,23 +4,22 @@ export function pattern(...patterns) {
 export var Match;
 (function (Match) {
     function token(match, optional, key) {
+        return testToken(t => t === match, optional, key ?? "tok");
+    }
+    Match.token = token;
+    function anyOf(matches, optional, key) {
+        return testToken(t => matches.includes(t), optional, key ?? "anyOf");
+    }
+    Match.anyOf = anyOf;
+    function testToken(match, optional, key) {
         return {
             Optional: !!optional,
             Handler: (t, b) => {
-                return result(t[b] == match, b, 1, key ?? "tok");
+                return result(match(t[b]), b, 1, key ?? "ttok");
             },
         };
     }
-    Match.token = token;
-    function anyOf(matches, key) {
-        return {
-            Optional: false,
-            Handler: (t, b) => {
-                return result(matches.includes(t[b]), b, 1, key ?? "toks");
-            },
-        };
-    }
-    Match.anyOf = anyOf;
+    Match.testToken = testToken;
     function sequence(seq, key) {
         return {
             Optional: false,
@@ -74,6 +73,16 @@ export var Match;
         };
     }
     Match.testSequence = testSequence;
+    function testPattern(pattern, optional, key) {
+        return {
+            Optional: optional,
+            Handler: (t, b) => {
+                let res = pattern.testPartial(t, b);
+                return result(res?.isSuccess, res?.startIndex, res?.length, key ?? "patt");
+            },
+        };
+    }
+    Match.testPattern = testPattern;
 })(Match || (Match = {}));
 export class Pattern {
     constructor(matches) {
@@ -92,7 +101,7 @@ export class Pattern {
                 fromIdx += res.Length;
             }
         }
-        return new PatternResult(matches);
+        return new PatternResult(tokens, matches);
     }
     // fails if there are any trailing characters
     testWhole(tokens, fromIdx) {
@@ -106,22 +115,32 @@ export class Pattern {
 function result(match, begin, length, key) {
     return { Match: match, Begin: begin, Length: length, Key: key };
 }
-class PatternResult {
-    constructor(matches) {
+export class PatternResult {
+    constructor(tokens, matches) {
+        this.__tokens = tokens;
         this.Matches = matches;
     }
     get isSuccess() { return this.Matches != null; }
     get length() {
-        return this.Matches?.map(m => m.Length).reduce((sum, curr) => sum + curr) ?? 0;
+        return this.endIndex - this.startIndex;
+    }
+    get startIndex() {
+        return Math.min(...this.Matches?.map(m => m.Begin) ?? [-1]);
+    }
+    get endIndex() {
+        return Math.max(...this.Matches?.map(m => m.Begin + m.Length) ?? [-1]);
+    }
+    GetSlice() {
+        return this.__tokens?.slice(this.startIndex, this.length) ?? [];
     }
 }
 export class Syntax {
     constructor(maps) {
         this.maps = maps ?? [];
     }
-    add(match, out) {
+    add(matches, out) {
         this.maps.push({
-            test: match,
+            test: new Pattern(matches),
             output: out
         });
         return this;

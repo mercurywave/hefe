@@ -1,4 +1,4 @@
-import { Match, pattern, Syntax } from "./patterns.js";
+import { Match, Syntax } from "./patterns.js";
 export class Lexer {
     static Tokenize(code) {
         let trim = code.trimStart();
@@ -19,30 +19,28 @@ export class Lexer {
         }
         return { TabDepth, Tokens, original: code };
     }
-    static isToken(toke) {
-    }
 }
 const _symbols = new Syntax()
-    .add(symbols(" \t"), false)
-    .add(token(":="), true)
-    .add(token(">>"), true)
-    .add(symbols("+-=/*!;\\()"), true)
-    .add(number(), true)
-    .add(word(), true)
+    .add([symbols(" \t")], false)
+    .add([token(":=")], true)
+    .add([token(">>")], true)
+    .add([symbols("+-=/*!;\\()")], true)
+    .add([number()], true)
+    .add([word()], true)
     .add(literalString(), true);
 function token(match) {
-    return pattern(Match.sequence(match.split("")));
+    return Match.sequence(match.split(""));
 }
 function symbols(symbols) {
-    return pattern(Match.anyOf(symbols.split("")));
+    return Match.anyOf(symbols.split(""));
 }
 function word() {
-    return pattern(Match.testSequence(t => {
+    return Match.testSequence(t => {
         return !!t.join("").match(/^[$A-Z_][0-9A-Z_$]*$/i);
-    }, "word"));
+    }, "word");
 }
 function number() {
-    return pattern(Match.testSequence(t => {
+    return Match.testSequence(t => {
         let test = t.join("");
         // this is a bit hacky because the test sequence is greedy
         // we also want a negative to be a unary operator
@@ -50,11 +48,15 @@ function number() {
         if (test[test.length - 1] === ".")
             return null;
         return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
-    }, "num"));
+    }, "num");
 }
 function literalString() {
-    return pattern(Match.token("\""), Match.matchWhileAt((tokes, idx) => {
-        return !(tokes[idx] === "\"" && tokes[idx - 1] !== "\\");
-    }), Match.token("\""));
+    return [
+        Match.token("\""),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "\"" && tokes[idx - 1] !== "\\");
+        }),
+        Match.token("\"")
+    ];
 }
 //# sourceMappingURL=Lexer.js.map

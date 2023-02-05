@@ -6,18 +6,16 @@ export function pattern<T>(...patterns: SingleMatch<T>[]):Pattern<T> {
 
 export module Match{
     export function token<T>(match: T, optional?: boolean, key?: string):SingleMatch<T> {
+        return testToken(t => t === match, optional, key ?? "tok");
+    }
+    export function anyOf<T>(matches: T[], optional?: boolean, key?: string):SingleMatch<T>{
+        return testToken(t => matches.includes(t), optional, key ?? "anyOf");
+    }
+    export function testToken<T>(match: (T) => boolean, optional?: boolean, key?: string):SingleMatch<T> {
         return {
             Optional: !!optional,
             Handler: (t,b) =>{
-                return result(t[b] == match, b, 1, key ?? "tok");
-            },
-        };
-    }
-    export function anyOf<T>(matches: T[], key?: string):SingleMatch<T>{
-        return {
-            Optional: false,
-            Handler: (t,b) => {
-                return result(matches.includes(t[b]), b, 1, key ?? "toks");
+                return result(match(t[b]), b, 1, key ?? "ttok");
             },
         };
     }
@@ -68,6 +66,16 @@ export module Match{
             },
         };
     }
+
+    export function testPattern<T>(pattern: Pattern<T>, optional?: boolean, key?: string):SingleMatch<T>{
+        return {
+            Optional: optional,
+            Handler: (t,b) =>{
+                let res = pattern.testPartial(t, b);
+                return result(res?.isSuccess, res?.startIndex, res?.length, key ?? "patt");
+            },
+        };
+    }
 }
 
 
@@ -78,7 +86,7 @@ export class Pattern<T>{
     }
 
     // null if no match. no guarantee we've reached the end
-    public testPartial(tokens: T[], fromIdx: number): PatternResult | null {
+    public testPartial(tokens: T[], fromIdx: number): PatternResult<T> | null {
         let matches: MatchResult[] = [];
         for (let i = 0; i < this.Matches.length; i++) {
             const test = this.Matches[i];
@@ -89,11 +97,11 @@ export class Pattern<T>{
                 fromIdx += res.Length;
             } 
         }
-        return new PatternResult(matches);
+        return new PatternResult(tokens, matches);
     }
     
     // fails if there are any trailing characters
-    public testWhole(tokens: T[], fromIdx: number): PatternResult | null {
+    public testWhole(tokens: T[], fromIdx: number): PatternResult<T> | null {
         var res = this.testPartial(tokens, fromIdx);
         if(res.length + fromIdx < tokens.length) { return null; }
         return res;
@@ -117,14 +125,25 @@ interface MatchResult{
     Key?: string;
 }
 
-class PatternResult{
+export class PatternResult<T>{
+    __tokens: T[]; // tokens are the whole list, not just the relevant one
     Matches?: MatchResult[];
-    public constructor(matches?: MatchResult[]){
+    public constructor(tokens: T[], matches?: MatchResult[]){
+        this.__tokens = tokens;
         this.Matches = matches;
     }
     public get isSuccess():boolean { return this.Matches != null; }
     public get length(): number {
-        return this.Matches?.map(m => m.Length).reduce((sum,curr) => sum + curr) ?? 0;
+        return this.endIndex - this.startIndex;
+    }
+    public get startIndex():number { 
+        return Math.min(... this.Matches?.map(m => m.Begin) ?? [-1]);
+    }
+    public get endIndex():number { 
+        return Math.max(... this.Matches?.map(m => m.Begin + m.Length) ?? [-1]);
+    }
+    public GetSlice(): T[]{
+        return this.__tokens?.slice(this.startIndex, this.length) ?? [];
     }
 }
 
@@ -138,9 +157,9 @@ export class Syntax<T,V>{
     public constructor(maps?: PatternMap<T,V>[]){
         this.maps = maps ?? [];
     }
-    public add(match, out): Syntax<T,V>{
+    public add(matches: SingleMatch<T>[], out:V): Syntax<T,V>{
         this.maps.push( {
-            test: match,
+            test: new Pattern<T>(matches),
             output: out
         } );
         return this;
@@ -166,7 +185,7 @@ export class Syntax<T,V>{
 
 interface SyntaxMatch<T,V>{
     pattern: Pattern<T>;
-    result: PatternResult;
+    result: PatternResult<T>;
     index: number;
     output: V;
 }

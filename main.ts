@@ -34,6 +34,7 @@ export class Workspace {
             prevCode = 'let a = all;\nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
         }
         this._txtEditor.value = prevCode;
+        this._txtInput.value = "Yes|No|12|true\nNo|No|15|true\nYes|Yes|8|null";
         setTimeout(() => {
             this.process();
         }, 0);
@@ -89,17 +90,20 @@ export class Workspace {
         try{
             const code = this._txtEditor.value;
             localStorage.setItem("jsCode", code);
-            const lines = code.split("\n");
-
-            const lexed = lines.map(c => {
-                try
-                {
-                    let lex = Lexer.Tokenize(c);
-                    return lex.Tokens;
-                    //return lex.Tokens.toString();
-                } catch(err){return err;}
-            });
-            this._txtOutput.value = lexed.join("\n").toString();
+            
+            //const lines = code.split("\n");
+            // const lexed = lines.map(c => {
+            //     try
+            //     {
+            //         let lex = Lexer.Tokenize(c);
+            //         return lex.Tokens;
+            //         //return lex.Tokens.toString();
+            //     } catch(err){return err;}
+            // });
+            // this._txtOutput.value = lexed.join("\n").toString();
+            var parse = Parser.Parse(code);
+            console.log(parse);
+            this._txtOutput.value = parse.toString();
         }
         catch(err){
             this.ShowError(err);
@@ -115,6 +119,7 @@ export class Workspace {
     }
 
     private ShowError(err){
+        console.log(err);
         this._txtOutput.value = "" + err;
     }
 }

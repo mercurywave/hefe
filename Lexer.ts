@@ -1,4 +1,4 @@
-import { Match, pattern, Pattern, Syntax } from "./patterns.js";
+import { Match, pattern, Pattern, SingleMatch, Syntax } from "./patterns.js";
 
 export class Lexer{
     public static Tokenize(code: string): LexLine{
@@ -19,55 +19,49 @@ export class Lexer{
         }
         return {TabDepth, Tokens, original: code};
     }
-
-    static isToken(toke: string){
-        
-    }
 }
 
 const _symbols = new Syntax<string, boolean>()
-    .add(symbols(" \t"), false)
-    .add(token(":="), true)
-    .add(token(">>"), true)
-    .add(symbols("+-=/*!;\\()"), true)
-    .add(number(), true)
-    .add(word(), true)
+    .add([symbols(" \t")], false)
+    .add([token(":=")], true)
+    .add([token(">>")], true)
+    .add([symbols("+-=/*!;\\()")], true)
+    .add([number()], true)
+    .add([word()], true)
     .add(literalString(), true)
 ;
 
-function token(match: string):Pattern<string> {
-    return pattern(Match.sequence(match.split("")));
+function token(match: string):SingleMatch<string> {
+    return Match.sequence(match.split(""));
 }
 
-function symbols(symbols: string):Pattern<string> {
-    return pattern(Match.anyOf(symbols.split("")));
+function symbols(symbols: string):SingleMatch<string> {
+    return Match.anyOf(symbols.split(""));
 }
 
-function word(): Pattern<string> {
-    return pattern(
-        Match.testSequence(t => {
+function word(): SingleMatch<string> {
+    return Match.testSequence(t => {
             return !!t.join("").match(/^[$A-Z_][0-9A-Z_$]*$/i);
-        },"word"))
+        },"word");
 }
-function number(): Pattern<string> {
-    return pattern(
-        Match.testSequence(t => {
-            let test = t.join("");
-            // this is a bit hacky because the test sequence is greedy
-            // we also want a negative to be a unary operator
-            // also, don't want 
-            if(test[test.length - 1] === ".") return null;
-            return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
-        }, "num"));
+function number(): SingleMatch<string> {
+    return Match.testSequence(t => {
+        let test = t.join("");
+        // this is a bit hacky because the test sequence is greedy
+        // we also want a negative to be a unary operator
+        // also, don't want 
+        if(test[test.length - 1] === ".") return null;
+        return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
+    }, "num");
 }
-function literalString(): Pattern<string>{
-    return pattern(
+function literalString(): SingleMatch<string>[]{
+    return [
         Match.token("\""),
         Match.matchWhileAt((tokes, idx) => {
             return !(tokes[idx] === "\"" && tokes[idx-1] !== "\\");
         }),
         Match.token("\"")
-    );
+    ];
 }
 
 export interface LexLine{
