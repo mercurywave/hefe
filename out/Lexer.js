@@ -22,14 +22,13 @@ export class Lexer {
 }
 const _symbols = new Syntax()
     .add([symbols(" \t")], false)
-    .add([token(":=")], true)
-    .add([token(">>")], true)
+    .add([tokens(":=", ">>", "!=")], true)
     .add([symbols("+-=/*!;\\()")], true)
     .add([number()], true)
     .add([word()], true)
     .add(literalString(), true);
-function token(match) {
-    return Match.sequence(match.split(""));
+function tokens(...matches) {
+    return Match.sequence(matches);
 }
 function symbols(symbols) {
     return Match.anyOf(symbols.split(""));
@@ -54,9 +53,18 @@ function literalString() {
     return [
         Match.token("\""),
         Match.matchWhileAt((tokes, idx) => {
-            return !(tokes[idx] === "\"" && tokes[idx - 1] !== "\\");
+            return !(tokes[idx] === "\"" && symCountBackwards(tokes, idx - 1, "\\") % 2 == 0);
         }),
         Match.token("\"")
     ];
+}
+function symCountBackwards(str, idx, symbol) {
+    let count = 0;
+    for (; idx > 0; idx--) {
+        if (str[idx] != symbol)
+            break;
+        count++;
+    }
+    return count;
 }
 //# sourceMappingURL=Lexer.js.map

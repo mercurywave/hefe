@@ -122,16 +122,28 @@ export class PatternResult {
     }
     get isSuccess() { return this.Matches != null; }
     get length() {
-        return this.endIndex - this.startIndex;
+        return this.endIndex - this.startIndex + 1;
     }
     get startIndex() {
         return Math.min(...this.Matches?.map(m => m.Begin) ?? [-1]);
     }
     get endIndex() {
-        return Math.max(...this.Matches?.map(m => m.Begin + m.Length) ?? [-1]);
+        return Math.max(...this.Matches?.map(m => m.Begin + m.Length - 1) ?? [-1]);
     }
     GetSlice() {
-        return this.__tokens?.slice(this.startIndex, this.length) ?? [];
+        return this.__tokens?.slice(this.startIndex, this.startIndex + this.length) ?? [];
+    }
+    PullOnlyResult() {
+        if (this.length != 1)
+            throw 'PullOnlyResult expected to find a single result';
+        return this.__tokens[this.startIndex];
+    }
+    tryGetByKey(key) {
+        for (const mtch of this.Matches) {
+            if (mtch.Key === key && mtch.Match)
+                return this.__tokens.slice(mtch.Begin, mtch.Begin + mtch.Length);
+        }
+        return null;
     }
 }
 export class Syntax {

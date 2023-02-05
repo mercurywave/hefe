@@ -4,31 +4,52 @@ import { Match, Pattern, pattern, PatternResult, SingleMatch, Syntax } from "./p
 export class Interpreter{
     static __gen = 0;
     public static async Process(input: string, code: IStatement[]): Promise<TransformResult>{
-        let currStep = new Stream(input);
+        let state = new InterpreterState(input);
         this.__gen++;
         let currGen = this.__gen;
 
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
-            if(step == null) return {output: currStep, step: ln - 1};
+            if(step == null) return {output: state.stream, step: state.line, isComplete: false, error: "could not parse line: " + ln};
+            state.line = ln;
             try{
-                console.log(":::");
-                const next = step.process(currStep);
-                currStep = next;
+                step.process(state);
             } catch(err){
                 console.log(err);
-                return {output: currStep, step: ln};
+                return {output: state.stream, step: state.line, isComplete: false, error: err};
             }
             await new Promise(f => setTimeout(f, 10));
             if(currGen != this.__gen) return null;
         }
-        return {output: currStep, step: code.length + 1};
+        return {output: state.stream, step:  state.line, isComplete: true};
     }
 }
 
 export interface TransformResult{
     output: Stream;
     step: number;
+    isComplete: boolean;
+    error?: string
+}
+
+export class InterpreterState{
+    __stream: Stream;
+    __variables: Record<string, Stream> = {};
+    public line: number = -1;
+
+    public get stream() {return this.__stream;}
+
+    public constructor(stream: string){
+        this.__stream = new Stream(stream);
+    }
+
+    public updateStream(stream: Stream){
+        this.__stream = stream;
+    }
+    public saveVar(name: string, value: Stream){
+        this.__variables[name] = value;
+    }
+    public get(name: string){ return this.__variables[name]; }
 }
 
 export class Stream {
@@ -47,7 +68,7 @@ export class Stream {
             return this.text;
         }
         if(this.num) return "" + this.num;
-        if(this.array) return "[\n" + this.array.map(s => " " + s.toDisplayText(nested + 1)).join(",\n") + "\n]";
+        if(this.array) return "[\n" + this.array.map(s => " " + s.toDisplayText((nested ?? 0) + 1)).join(",\n") + "\n]";
         return "???";
     }
 }
@@ -71,18 +92,54 @@ export class Parser{
         let idx = 0;
         let depth = context.getDepth(tokens.TabDepth);
         while(idx < tokens.Tokens.length){
-            let match = _statements.firstPartialMatch(tokens.Tokens, 0);
+            let match = _statements.firstPartialMatch(tokens.Tokens, idx);
             if(match == null) return null;
             states.push(match.output(depth, match.result));
             idx = match.result.endIndex + 1;
             if(idx < tokens.Tokens.length && tokens[idx] == ">>") idx++;
-            //else if (tokens[idx] == )
+            else if(idx < tokens.Tokens.length) return null;
         }
         let result: IStatement;
         if(states.length == 0) result = null;
         else if(states.length == 1) result = states[0];
         else result = new SMultiStatement(depth, states);
         return result;
+    }
+
+    public static tryParseParamList(parse: PatternResult<string>, key?: string): IExpression[] | null{
+        let tokes = parse?.tryGetByKey(key ?? "params");
+        if(tokes == null) return null;
+        return this.tryParseExpressions(tokes.slice(1, -1));
+    }
+
+    public static tryParseExpressions(tokens: string[]): IExpression[]{
+        let outputs: IExpression[] = [];
+        let idx = 0;
+        let stack: IExpression[] = [];
+        let ops: string[] = [];
+        while(true){
+            let match = _expressionComps.firstPartialMatch(tokens, idx);
+            if(match == null) return null;
+            stack.push(match.output(match.result));
+            idx = match.result.endIndex + 1;
+            if(idx >= tokens.length || tokens[idx] == ",") {
+                idx++;
+                if(stack.length == 1) outputs.push(stack[0]);
+                else{}
+                if(idx > tokens.length) break;
+            }
+            else if(EOperator.IsOperator(tokens[idx])) {
+                ops.push(tokens[idx]);
+                idx++;
+            }
+            else return null;
+        }
+        return outputs;
+    }
+    public static tryParseExpression(tokens: string[]): IExpression{
+        let arr = this.tryParseExpressions(tokens);
+        if(!arr || arr.length != 1) return null;
+        return arr[0];
     }
 }
 
@@ -118,10 +175,11 @@ const _statements = new Syntax<string, StatementGenerator>()
 ;
 
 type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
+// should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax<string, ExpressionGenerator>()
     .add([identifier()],res => new EIdentifier(res))
-    .add([literalNumber()], res => new ELiteral(res))
-    .add([literalString()], res => new ELiteral(res))
+    .add([literalNumber()], res => new ENumericLiteral(res))
+    .add([literalString()], res => new EStringLiteral(res))
     .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
 ;
 
@@ -130,23 +188,16 @@ abstract class IStatement{
     public constructor(depth: number){
         this.tabDepth = depth;
     }
-    public abstract process(stream: Stream) : Stream;
+    public abstract process(state: InterpreterState);
 }
 
 abstract class IExpression{
-
-}
-
-class SIntrinsic{
-
-}
-
-class Expression{
-
-}
-
-class Operator{
-
+    public abstract Eval(state: InterpreterState): Stream;
+    public EvalAsText(state: InterpreterState){
+        let out = this.Eval(state);
+        if(out.text == null) throw 'expected expression to evaluate as string, got '+ out.toDisplayText();
+        return out.text;
+    }
 }
 
 function token(match: string):SingleMatch<string> {
@@ -188,45 +239,103 @@ class SMultiStatement extends IStatement{
         super(depth);
         this.__list = list;
     }
-    public override process(stream: Stream): Stream {
+    public override process(state: InterpreterState) {
         for (let index = 0; index < this.__list.length; index++) {
-            const state = this.__list[index];
-            stream = state.process(stream);
+            const substate = this.__list[index];
+            substate.process(state);
         }
-        return stream;
     }
 }
 
 class SSplit extends IStatement{
-    __delim: string;
+    __exp: IExpression;
     public constructor(depth: number, parse: PatternResult<string>){
         super(depth);
-        this.__delim = "\n";
+        var pars = Parser.tryParseParamList(parse);
+        if(assertParams(pars, 0, 1))
+            this.__exp = pars[0];
     }
-    public process(stream: Stream): Stream {
-        console.log("???");
-        if(stream.text === null) throw "cannot split stream";
-        return new Stream(null, stream.text.split(this.__delim).map(s => new Stream(s)) );
+    public process(state: InterpreterState) {
+        if(state.stream.text === null) throw "cannot split stream - expected string";
+        let delim = "\n";
+        if(this.__exp) delim = this.__exp.EvalAsText(state);
+        state.updateStream(new Stream(null, state.stream.text.split(delim).map(s => new Stream(s))));
     }
 }
+
 
 class EIdentifier extends IExpression{
     public constructor(parse: PatternResult<string>){
         super();
     }
+    public Eval(state: InterpreterState): Stream {
+        throw '';
+    }
 }
 
-class ELiteral extends IExpression{
+class ENumericLiteral extends IExpression{
+    __num: number;
     public constructor(parse: PatternResult<string>){
         super();
+        this.__num = Number.parseFloat(parse.PullOnlyResult());
+    }
+    public Eval(state: InterpreterState): Stream {
+        return new Stream(null, null, this.__num);
+    }
+}
+
+class EStringLiteral extends IExpression{
+    __str : string;
+    public constructor(parse: PatternResult<string>){
+        super();
+        const str = parse.PullOnlyResult();
+        // this seems like something where there should be a better way...
+        this.__str = JSON.parse(str);// str.substring(1, str.length - 1).replace();
+        
+    }
+    public Eval(state: InterpreterState): Stream {
+        return new Stream(this.__str);
     }
 }
 
 class EExpression extends IExpression{
-    public constructor(parse: PatternResult<string>){super();}
+    public constructor(parse: PatternResult<string>){
+        super();
+    }
+    public Eval(state: InterpreterState): Stream {
+        throw '';
+    }
+}
+
+class EOperator extends IExpression{
+    __stack: IExpression[];
+    __ops: string[];
+    public constructor(stack: IExpression[], ops: string[]){
+        super();
+        this.__stack = stack;
+        this.__ops = ops;
+    }
+    public Eval(state: InterpreterState): Stream {
+        throw '';
+    }
+
+    public static IsOperator(op: string): boolean{
+        switch (op) {
+            case "!=":
+                return true;
+            default: return "+-=*/&|<>".includes(op);
+        }
+    }
 }
 
 function arrCount<T>(arr: T[], elem:T): number
 {
     return arr.map<number>(curr => curr == elem ? 1 : 0).reduce((sum, curr) => sum + curr);
+}
+
+function assertParams(pars: IExpression[] | null, min: number, max: number): boolean{
+    let len = pars?.length ?? 0;
+    if(len < min) throw 'function requires parameters';
+    if(len > max) throw 'too many parameters for function';
+    return len > 0;
 }

@@ -90,8 +90,9 @@ export class Workspace {
         var parse = Parser.Parse(code);
         console.log(parse);
         let res = await Interpreter.Process(this._txtInput.value, parse);
-        if (res != null) {
-            console.log(res.output);
+        if (res.error)
+            this.ShowError(res.error);
+        else if (res != null) {
             this._txtOutput.value = res.output.toDisplayText();
         }
     }
@@ -102,6 +103,7 @@ export class Workspace {
         console.log("copied to clipboard");
     }
     ShowError(err) {
+        console.log("error:");
         console.log(err);
         this._txtOutput.value = "" + err;
     }

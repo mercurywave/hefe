@@ -111,9 +111,10 @@ export class Workspace {
         var parse = Parser.Parse(code);
         console.log(parse);
         let res = await Interpreter.Process(this._txtInput.value, parse);
-        if(res != null)
+        if(res.error)
+            this.ShowError(res.error);
+        else if(res != null)
         {
-            console.log(res.output);
             this._txtOutput.value = res.output.toDisplayText();
         }
     }
@@ -127,6 +128,7 @@ export class Workspace {
     }
 
     private ShowError(err){
+        console.log("error:");
         console.log(err);
         this._txtOutput.value = "" + err;
     }

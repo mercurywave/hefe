@@ -23,16 +23,15 @@ export class Lexer{
 
 const _symbols = new Syntax<string, boolean>()
     .add([symbols(" \t")], false)
-    .add([token(":=")], true)
-    .add([token(">>")], true)
+    .add([tokens(":=",">>","!=")], true)
     .add([symbols("+-=/*!;\\()")], true)
     .add([number()], true)
     .add([word()], true)
     .add(literalString(), true)
 ;
 
-function token(match: string):SingleMatch<string> {
-    return Match.sequence(match.split(""));
+function tokens(...matches: string[]):SingleMatch<string> {
+    return Match.sequence(matches);
 }
 
 function symbols(symbols: string):SingleMatch<string> {
@@ -58,10 +57,19 @@ function literalString(): SingleMatch<string>[]{
     return [
         Match.token("\""),
         Match.matchWhileAt((tokes, idx) => {
-            return !(tokes[idx] === "\"" && tokes[idx-1] !== "\\");
+            return !(tokes[idx] === "\"" && symCountBackwards(tokes, idx -1, "\\") % 2 == 0);
         }),
         Match.token("\"")
     ];
+}
+
+function symCountBackwards(str: string[], idx:number, symbol: string): number{
+    let count = 0;
+    for(; idx > 0; idx--){
+        if(str[idx] != symbol) break;
+        count++;
+    }
+    return count;
 }
 
 export interface LexLine{

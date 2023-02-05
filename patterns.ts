@@ -134,16 +134,26 @@ export class PatternResult<T>{
     }
     public get isSuccess():boolean { return this.Matches != null; }
     public get length(): number {
-        return this.endIndex - this.startIndex;
+        return this.endIndex - this.startIndex + 1;
     }
     public get startIndex():number { 
         return Math.min(... this.Matches?.map(m => m.Begin) ?? [-1]);
     }
     public get endIndex():number { 
-        return Math.max(... this.Matches?.map(m => m.Begin + m.Length) ?? [-1]);
+        return Math.max(... this.Matches?.map(m => m.Begin + m.Length - 1) ?? [-1]);
     }
     public GetSlice(): T[]{
-        return this.__tokens?.slice(this.startIndex, this.length) ?? [];
+        return this.__tokens?.slice(this.startIndex, this.startIndex + this.length) ?? [];
+    }
+    public PullOnlyResult(): T{
+        if(this.length != 1) throw 'PullOnlyResult expected to find a single result';
+        return this.__tokens[this.startIndex];
+    }
+    public tryGetByKey(key: string) : T[] | null{
+        for (const mtch of this.Matches) {
+            if(mtch.Key === key && mtch.Match) return this.__tokens.slice(mtch.Begin, mtch.Begin + mtch.Length);
+        }
+        return null;
     }
 }
 
