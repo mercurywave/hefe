@@ -40,12 +40,24 @@ export class InterpreterState {
     }
     get(name) { return this.__variables[name]; }
 }
+export var eStreamType;
+(function (eStreamType) {
+    eStreamType[eStreamType["Text"] = 0] = "Text";
+    eStreamType[eStreamType["Num"] = 1] = "Num";
+    eStreamType[eStreamType["Bool"] = 2] = "Bool";
+    eStreamType[eStreamType["Array"] = 3] = "Array";
+})(eStreamType || (eStreamType = {}));
 export class Stream {
-    constructor(text, array, num) {
+    constructor(text, array, num, bool) {
         this.text = text;
         this.array = array;
         this.num = num;
+        this.bool = bool;
     }
+    static mkText(text) { return new Stream(text); }
+    static mkArr(arr) { return new Stream(null, arr); }
+    static mkNum(num) { return new Stream(null, null, num); }
+    static mkBool(bool) { return new Stream(null, null, null, bool); }
     toDisplayText(nested) {
         if (this.text) {
             if (nested > 0)
@@ -57,6 +69,85 @@ export class Stream {
         if (this.array)
             return "[\n" + this.array.map(s => " " + s.toDisplayText((nested ?? 0) + 1)).join(",\n") + "\n]";
         return "???";
+    }
+    static areEqual(a, b) {
+        if (a.text != null)
+            return a.text === b.text;
+        if (a.num != null)
+            return a.num === b.num;
+        if (a.bool != null)
+            return a.bool === b.bool;
+        if (a.array != null)
+            throw 'array comparison not implemented';
+        throw "couldn't compare null object?";
+    }
+    static areSameType(a, b) {
+        return a.type == b.type;
+    }
+    get type() {
+        if (this.text !== null)
+            return eStreamType.Text;
+        if (this.num !== null)
+            return eStreamType.Num;
+        if (this.bool !== null)
+            return eStreamType.Bool;
+        if (this.array !== null)
+            return eStreamType.Array;
+        throw 'unknown type';
+    }
+    canCastTo(type) {
+        switch (type) {
+            case eStreamType.Array: return [eStreamType.Array].includes(type);
+            case eStreamType.Bool: return [eStreamType.Bool, eStreamType.Num].includes(type);
+            case eStreamType.Num: return [eStreamType.Num].includes(type);
+            case eStreamType.Text: return [eStreamType.Text, eStreamType.Num, eStreamType.Bool].includes(type);
+            default: throw 'type not implemented for canCast';
+        }
+    }
+    runOp(op, other) {
+        switch (op) {
+            case "=": return new Stream(null, null, null, Stream.areEqual(this, other));
+            case "!=": return new Stream(null, null, null, !Stream.areEqual(this, other));
+            case "+":
+                if (!other.canCastTo(this.type))
+                    throw 'could not cast right side for +';
+                switch (this.type) {
+                    case eStreamType.Num: return Stream.mkNum(this.num + other.asNum());
+                    case eStreamType.Text: return Stream.mkText(this.text + other.asString());
+                    case eStreamType.Array: return Stream.mkArr([].concat(this.array, other.asArray()));
+                    default: throw 'types not compatible for +';
+                }
+            default: throw 'operator ' + op + ' is not implemented';
+        }
+    }
+    toRaw() {
+        return this.text ?? this.num ?? this.bool ?? this.array;
+    }
+    asNum() {
+        if (this.num !== null)
+            return this.num;
+        throw 'cannot cast to number';
+    }
+    asString() {
+        if (this.text !== null)
+            return this.text;
+        if (this.num !== null)
+            return "" + this.num;
+        if (this.bool !== null)
+            return "" + this.bool;
+        throw 'cannot cast to number';
+    }
+    asBool() {
+        if (this.bool !== null)
+            return this.bool;
+        if (this.num !== null)
+            return this.num != 0;
+        throw 'cannot cast to number';
+    }
+    asArray() {
+        if (this.array !== null)
+            return this.array; // caution! original reference!
+        throw 'cannot cast to number';
     }
 }
 export class Parser {
@@ -101,6 +192,7 @@ export class Parser {
             return null;
         return this.tryParseExpressions(tokes.slice(1, -1));
     }
+    // null is valid, but a buggy expresison will throw
     static tryParseExpressions(tokens) {
         let outputs = [];
         let idx = 0;
@@ -116,16 +208,22 @@ export class Parser {
                 idx++;
                 if (stack.length == 1)
                     outputs.push(stack[0]);
-                else { }
-                if (idx > tokens.length)
+                else {
+                    outputs.push(EOperator.SplitEquation(stack, ops));
+                    stack = [];
+                    ops = [];
+                }
+                if (idx >= tokens.length)
                     break;
             }
             else if (EOperator.IsOperator(tokens[idx])) {
                 ops.push(tokens[idx]);
                 idx++;
+                if (idx >= tokens.length)
+                    throw 'expected expression to continue';
             }
             else
-                return null;
+                throw 'unexpected symbol ' + tokens[idx];
         }
         return outputs;
     }
@@ -210,7 +308,7 @@ function expressionLike(stop) {
         if (lPars > rPars)
             return null;
         return true;
-    });
+    }, "exp");
 }
 function parameterList(optional) {
     return Match.testPattern(pattern(token("("), expressionLike(), token(")")), optional, "params");
@@ -274,19 +372,45 @@ class EStringLiteral extends IExpression {
 class EExpression extends IExpression {
     constructor(parse) {
         super();
+        let tokes = parse.tryGetByKey("exp");
+        this.__inner = Parser.tryParseExpression(tokes);
     }
     Eval(state) {
-        throw '';
+        return this.__inner.Eval(state);
     }
 }
 class EOperator extends IExpression {
-    constructor(stack, ops) {
+    constructor(left, op, right) {
         super();
-        this.__stack = stack;
-        this.__ops = ops;
+        this.__left = left;
+        this.__right = right;
+        this.__op = op;
+    }
+    static SplitEquation(stack, ops) {
+        let opIdx = ops.map((o, i) => i);
+        opIdx.sort((a, b) => {
+            const aa = EOperator.OpPriority(ops[a]);
+            const bb = EOperator.OpPriority(ops[b]);
+            if (aa == bb)
+                return 0;
+            if (aa > bb)
+                return 1;
+            if (aa < bb)
+                return -1;
+            throw 'unreachable';
+        });
+        for (const idx of opIdx) {
+            const newOp = new EOperator(stack[idx], ops[idx], stack[idx + 1]);
+            stack[idx] = newOp;
+            stack[idx + 1] = newOp;
+        }
+        // all the expressions in the stack should now point to the same operation
+        return stack[0];
     }
     Eval(state) {
-        throw '';
+        const a = this.__left.Eval(state);
+        const b = this.__right.Eval(state);
+        return a.runOp(this.__op, b);
     }
     static IsOperator(op) {
         switch (op) {
@@ -294,6 +418,10 @@ class EOperator extends IExpression {
                 return true;
             default: return "+-=*/&|<>".includes(op);
         }
+    }
+    static OpPriority(op) {
+        // this is complicated, and will rarely matter...
+        throw 'not implemented';
     }
 }
 function arrCount(arr, elem) {

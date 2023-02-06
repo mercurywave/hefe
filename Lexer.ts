@@ -27,11 +27,12 @@ const _symbols = new Syntax<string, boolean>()
     .add([symbols("+-=/*!;\\()")], true)
     .add([number()], true)
     .add([word()], true)
+    .add([tokens("\"\"")], true) // easier to special case an empty string
     .add(literalString(), true)
 ;
 
 function tokens(...matches: string[]):SingleMatch<string> {
-    return Match.sequence(matches);
+    return Match.sequences(matches.map(s => s.split("")));
 }
 
 function symbols(symbols: string):SingleMatch<string> {

@@ -20,15 +20,19 @@ export module Match{
         };
     }
     
-    export function sequence<T>(seq: T[], key?: string):SingleMatch<T>{
+    export function sequences<T>(sequences: T[][], key?: string):SingleMatch<T>{
         return {
             Optional: false,
             Handler: (t,b) =>{
-                let exact = true;
-                for (let index = 0; index + b < t.length && index < seq.length; index++) {
-                    exact &&= (t[index + b] == seq[index]);
+                for (const seq of sequences) {   
+                    let exact = true;
+                    for (let index = 0; index + b < t.length && index < seq.length; index++) {
+                        exact &&= (t[index + b] == seq[index]);
+                    }
+                    if(exact)
+                        return result(exact, b, seq.length, key ?? "seq");
                 }
-                return result(exact, b, seq.length, key ?? "seq");
+                return result(false, b, 0, key);
             },
         };
     }

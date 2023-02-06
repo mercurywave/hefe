@@ -26,9 +26,10 @@ const _symbols = new Syntax()
     .add([symbols("+-=/*!;\\()")], true)
     .add([number()], true)
     .add([word()], true)
+    .add([tokens("\"\"")], true) // easier to special case an empty string
     .add(literalString(), true);
 function tokens(...matches) {
-    return Match.sequence(matches);
+    return Match.sequences(matches.map(s => s.split("")));
 }
 function symbols(symbols) {
     return Match.anyOf(symbols.split(""));

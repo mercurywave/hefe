@@ -20,19 +20,23 @@ export var Match;
         };
     }
     Match.testToken = testToken;
-    function sequence(seq, key) {
+    function sequences(sequences, key) {
         return {
             Optional: false,
             Handler: (t, b) => {
-                let exact = true;
-                for (let index = 0; index + b < t.length && index < seq.length; index++) {
-                    exact && (exact = t[index + b] == seq[index]);
+                for (const seq of sequences) {
+                    let exact = true;
+                    for (let index = 0; index + b < t.length && index < seq.length; index++) {
+                        exact && (exact = t[index + b] == seq[index]);
+                    }
+                    if (exact)
+                        return result(exact, b, seq.length, key ?? "seq");
                 }
-                return result(exact, b, seq.length, key ?? "seq");
+                return result(false, b, 0, key);
             },
         };
     }
-    Match.sequence = sequence;
+    Match.sequences = sequences;
     // minimum 1
     function matchWhile(matcher, key) {
         return matchWhileAt((tokes, idx) => matcher(tokes[idx]), key);
