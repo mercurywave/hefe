@@ -253,6 +253,7 @@ class ParseContext{
 type StatementGenerator = (depth: number, result: PatternResult<string>) => IStatement;
 const _statements = new Syntax<string, StatementGenerator>()
     .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res))
+    .add([token("join"), parameterList(true)], (dep, res) => new SJoin(dep, res))
 ;
 
 type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
@@ -341,6 +342,22 @@ class SSplit extends IStatement{
         let delim = "\n";
         if(this.__exp) delim = this.__exp.EvalAsText(state);
         state.updateStream(new Stream(null, state.stream.text.split(delim).map(s => new Stream(s))));
+    }
+}
+
+class SJoin extends IStatement{
+    __exp: IExpression;
+    public constructor(depth: number, parse: PatternResult<string>){
+        super(depth);
+        var pars = Parser.tryParseParamList(parse);
+        if(assertParams(pars, 0, 1))
+            this.__exp = pars[0];
+    }
+    public process(state: InterpreterState) {
+        if(state.stream.array === null) throw "cannot join stream - expected string";
+        let delim = "\n";
+        if(this.__exp) delim = this.__exp.EvalAsText(state);
+        state.updateStream(Stream.mkText(state.stream.array.map(s => s.asString()).join(delim)));
     }
 }
 

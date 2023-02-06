@@ -264,7 +264,8 @@ class ParseContext {
     }
 }
 const _statements = new Syntax()
-    .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res));
+    .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res))
+    .add([token("join"), parameterList(true)], (dep, res) => new SJoin(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
     .add([identifier()], res => new EIdentifier(res))
@@ -339,6 +340,22 @@ class SSplit extends IStatement {
         if (this.__exp)
             delim = this.__exp.EvalAsText(state);
         state.updateStream(new Stream(null, state.stream.text.split(delim).map(s => new Stream(s))));
+    }
+}
+class SJoin extends IStatement {
+    constructor(depth, parse) {
+        super(depth);
+        var pars = Parser.tryParseParamList(parse);
+        if (assertParams(pars, 0, 1))
+            this.__exp = pars[0];
+    }
+    process(state) {
+        if (state.stream.array === null)
+            throw "cannot join stream - expected string";
+        let delim = "\n";
+        if (this.__exp)
+            delim = this.__exp.EvalAsText(state);
+        state.updateStream(Stream.mkText(state.stream.array.map(s => s.asString()).join(delim)));
     }
 }
 class EIdentifier extends IExpression {
