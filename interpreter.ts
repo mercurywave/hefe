@@ -13,7 +13,7 @@ export class Interpreter{
             if(step == null) return {output: state.stream, step: state.line, isComplete: false, error: "could not parse line: " + ln};
             state.line = ln;
             try{
-                step.process(state);
+                await step.process(state);
             } catch(err){
                 console.log(err);
                 return {output: state.stream, step: state.line, isComplete: false, error: err};
@@ -279,13 +279,13 @@ abstract class IStatement{
     public constructor(depth: number){
         this.tabDepth = depth;
     }
-    public abstract process(state: InterpreterState);
+    public abstract process(state: InterpreterState):Promise<void>;
 }
 
 abstract class IExpression{
-    public abstract Eval(state: InterpreterState): Stream;
-    public EvalAsText(state: InterpreterState){
-        let out = this.Eval(state);
+    public abstract Eval(state: InterpreterState): Promise<Stream>;
+    public async EvalAsText(state: InterpreterState): Promise<string>{
+        let out = await this.Eval(state);
         if(out.text == null) throw 'expected expression to evaluate as string, got '+ out.toDisplayText();
         return out.text;
     }
@@ -330,10 +330,10 @@ class SMultiStatement extends IStatement{
         super(depth);
         this.__list = list;
     }
-    public override process(state: InterpreterState) {
+    public override async process(state: InterpreterState): Promise<void> {
         for (let index = 0; index < this.__list.length; index++) {
             const substate = this.__list[index];
-            substate.process(state);
+            await substate.process(state);
         }
     }
 }
@@ -346,17 +346,17 @@ class SSplit extends IStatement{
         if(assertParams(pars, 0, 1))
             this.__exp = pars[0];
     }
-    public process(state: InterpreterState) {
+    public async process(state: InterpreterState): Promise<void> {
         if(state.stream.text === null) throw "cannot split stream - expected string";
         let delim = "\n";
-        if(this.__exp) delim = this.__exp.EvalAsText(state);
+        if(this.__exp) delim = await this.__exp.EvalAsText(state);
         state.updateStream(new Stream(null, state.stream.text.split(delim).map(s => new Stream(s))));
     }
 }
 
 class SNoop extends IStatement{
     public constructor(depth: number){super(depth);}
-    public process(state: InterpreterState) {}
+    public async process(state: InterpreterState): Promise<void> {}
 }
 
 class SJoin extends IStatement{
@@ -367,10 +367,10 @@ class SJoin extends IStatement{
         if(assertParams(pars, 0, 1))
             this.__exp = pars[0];
     }
-    public process(state: InterpreterState) {
+    public async process(state: InterpreterState): Promise<void> {
         if(state.stream.array === null) throw "cannot join stream - expected array";
         let delim = "\n";
-        if(this.__exp) delim = this.__exp.EvalAsText(state);
+        if(this.__exp) delim = await this.__exp.EvalAsText(state);
         state.updateStream(Stream.mkText(state.stream.array.map(s => s.asString()).join(delim)));
     }
 }
@@ -387,10 +387,10 @@ class SReplace extends IStatement{
             this.__replacement = pars[1];
         }
     }
-    public process(state: InterpreterState) {
+    public async process(state: InterpreterState): Promise<void> {
         if(!state.stream.isText) throw "cannot replace stream - expected string";
-        let target = this.__target.Eval(state);
-        let replace = this.__replacement.Eval(state);
+        let target = await this.__target.Eval(state);
+        let replace = await this.__replacement.Eval(state);
         state.updateStream(Stream.mkText(state.stream.text.replaceAll(target.asString(), replace.asString())));
     }
 }
@@ -400,7 +400,7 @@ class EIdentifier extends IExpression{
     public constructor(parse: PatternResult<string>){
         super();
     }
-    public Eval(state: InterpreterState): Stream {
+    public async Eval(state: InterpreterState): Promise<Stream> {
         throw '';
     }
 }
@@ -411,7 +411,7 @@ class ENumericLiteral extends IExpression{
         super();
         this.__num = Number.parseFloat(parse.PullOnlyResult());
     }
-    public Eval(state: InterpreterState): Stream {
+    public async Eval(state: InterpreterState): Promise<Stream> {
         return new Stream(null, null, this.__num);
     }
 }
@@ -425,7 +425,7 @@ class EStringLiteral extends IExpression{
         this.__str = JSON.parse(str);// str.substring(1, str.length - 1).replace();
         
     }
-    public Eval(state: InterpreterState): Stream {
+    public async Eval(state: InterpreterState): Promise<Stream> {
         return new Stream(this.__str);
     }
 }
@@ -437,7 +437,7 @@ class EExpression extends IExpression{
         let tokes = parse.tryGetByKey("exp");
         this.__inner = Parser.tryParseExpression(tokes);
     }
-    public Eval(state: InterpreterState): Stream {
+    public async Eval(state: InterpreterState): Promise<Stream> {
         return this.__inner.Eval(state);
     }
 }
@@ -472,9 +472,9 @@ class EOperator extends IExpression{
         // all the expressions in the stack should now point to the same operation
         return stack[0];
     }
-    public Eval(state: InterpreterState): Stream {
-        const a = this.__left.Eval(state);
-        const b = this.__right.Eval(state);
+    public async Eval(state: InterpreterState): Promise<Stream> {
+        const a = await this.__left.Eval(state);
+        const b = await this.__right.Eval(state);
         return a.runOp(this.__op, b);
     }
     public static IsOperator(op: string): boolean{
