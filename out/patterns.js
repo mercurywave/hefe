@@ -11,6 +11,11 @@ export var Match;
         return testToken(t => matches.includes(t), optional, key ?? "anyOf");
     }
     Match.anyOf = anyOf;
+    function anything(optional) {
+        // always includes the rest of the stream. does not stop for nothing
+        return matchWhile(t => true, optional);
+    }
+    Match.anything = anything;
     function testToken(match, optional, key) {
         return {
             Optional: !!optional,
@@ -27,7 +32,7 @@ export var Match;
                 for (const seq of sequences) {
                     let exact = true;
                     for (let index = 0; index + b < t.length && index < seq.length; index++) {
-                        exact && (exact = t[index + b] == seq[index]);
+                        exact &&= (t[index + b] == seq[index]);
                     }
                     if (exact)
                         return result(exact, b, seq.length, key ?? "seq");
@@ -38,13 +43,13 @@ export var Match;
     }
     Match.sequences = sequences;
     // minimum 1
-    function matchWhile(matcher, key) {
-        return matchWhileAt((tokes, idx) => matcher(tokes[idx]), key);
+    function matchWhile(matcher, optional, key) {
+        return matchWhileAt((tokes, idx) => matcher(tokes[idx]), optional, key);
     }
     Match.matchWhile = matchWhile;
-    function matchWhileAt(matcher, key) {
+    function matchWhileAt(matcher, optional, key) {
         return {
-            Optional: false,
+            Optional: optional,
             Handler: (t, b) => {
                 let index = 0;
                 for (; index + b < t.length; index++) {
@@ -58,7 +63,7 @@ export var Match;
     }
     Match.matchWhileAt = matchWhileAt;
     // test increasingly long sequences - not efficient
-    function testSequence(matcher, key) {
+    function testSequence(matcher, optional, key) {
         return {
             Optional: false,
             Handler: (t, b) => {

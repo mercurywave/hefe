@@ -22,8 +22,9 @@ export class Lexer {
 }
 const _symbols = new Syntax()
     .add([symbols(" \t")], false)
-    .add([tokens(":=", ">>", "!=")], true)
-    .add([symbols("+-=/*!;\\()")], true)
+    .add([tokens(":=", ">>", "!=", "<=", ">=")], true)
+    .add([tokens("//"), Match.anything(true)], false)
+    .add([symbols("+-=/*!;\\(),.")], true)
     .add([number()], true)
     .add([word()], true)
     .add([tokens("\"\"")], true) // easier to special case an empty string
@@ -37,7 +38,7 @@ function symbols(symbols) {
 function word() {
     return Match.testSequence(t => {
         return !!t.join("").match(/^[$A-Z_][0-9A-Z_$]*$/i);
-    }, "word");
+    }, false, "word");
 }
 function number() {
     return Match.testSequence(t => {
@@ -48,7 +49,7 @@ function number() {
         if (test[test.length - 1] === ".")
             return null;
         return !test.includes(" ") && !test.includes("-") && !isNaN(+test) && isFinite(+test);
-    }, "num");
+    }, false, "num");
 }
 function literalString() {
     return [

@@ -11,6 +11,10 @@ export module Match{
     export function anyOf<T>(matches: T[], optional?: boolean, key?: string):SingleMatch<T>{
         return testToken(t => matches.includes(t), optional, key ?? "anyOf");
     }
+    export function anything<T>(optional?: boolean): SingleMatch<T>{
+        // always includes the rest of the stream. does not stop for nothing
+        return matchWhile(t => true, optional);
+    }
     export function testToken<T>(match: (T) => boolean, optional?: boolean, key?: string):SingleMatch<T> {
         return {
             Optional: !!optional,
@@ -38,13 +42,13 @@ export module Match{
     }
 
     // minimum 1
-    export function matchWhile<T>(matcher: (toke: T) => boolean, key?: string):SingleMatch<T>{
-        return matchWhileAt((tokes,idx) => matcher(tokes[idx]), key);
+    export function matchWhile<T>(matcher: (toke: T) => boolean, optional?: boolean, key?: string):SingleMatch<T>{
+        return matchWhileAt((tokes,idx) => matcher(tokes[idx]), optional, key);
     }
 
-    export function matchWhileAt<T>(matcher: (tokes: T[], idx: number) => boolean, key?: string):SingleMatch<T>{
+    export function matchWhileAt<T>(matcher: (tokes: T[], idx: number) => boolean, optional?: boolean, key?: string):SingleMatch<T>{
         return {
-            Optional: false,
+            Optional: optional,
             Handler: (t,b) =>{
                 let index = 0;
                 for (; index + b < t.length; index++) {
@@ -56,7 +60,7 @@ export module Match{
     }
 
     // test increasingly long sequences - not efficient
-    export function testSequence<T>(matcher: (tokes: T[]) => boolean | null, key?: string):SingleMatch<T>{
+    export function testSequence<T>(matcher: (tokes: T[]) => boolean | null, optional?: boolean, key?: string):SingleMatch<T>{
         return {
             Optional: false,
             Handler: (t,b) =>{

@@ -146,6 +146,10 @@ export class Stream {
         if(this.array !== null) return this.array; // caution! original reference!
         throw 'cannot cast to number';
     }
+    public get isNum(): boolean { return this.isNum !== null; }
+    public get isText(): boolean { return this.text !== null; }
+    public get isBool(): boolean { return this.bool !== null; }
+    public get isArray(): boolean { return this.array !== null; }
 }
 
 
@@ -166,6 +170,7 @@ export class Parser{
         let states: IStatement[] = [];
         let idx = 0;
         let depth = context.getDepth(tokens.TabDepth);
+        if(tokens.Tokens.length == 0) return new SNoop(tokens.TabDepth);
         while(idx < tokens.Tokens.length){
             let match = _statements.firstPartialMatch(tokens.Tokens, idx);
             if(match == null) return null;
@@ -200,12 +205,14 @@ export class Parser{
             idx = match.result.endIndex + 1;
             if(idx >= tokens.length || tokens[idx] == ",") {
                 idx++;
-                if(stack.length == 1) outputs.push(stack[0]);
+                if(stack.length == 1) {
+                    outputs.push(stack[0]);
+                }
                 else{
                     outputs.push(EOperator.SplitEquation(stack, ops));
-                    stack = [];
-                    ops = [];
                 }
+                stack = [];
+                ops = [];
                 if(idx >= tokens.length) break;
             }
             else if(EOperator.IsOperator(tokens[idx])) {
@@ -241,6 +248,7 @@ class ParseContext{
         let count = 0;
         for (let index = this.Statements.length - 1; index >= 0; index--) {
             const state = this.Statements[index];
+            if(!state) return count;
             if(state.tabDepth < tabDepth) {
                 count++;
                 tabDepth = state.tabDepth;
@@ -254,6 +262,7 @@ type StatementGenerator = (depth: number, result: PatternResult<string>) => ISta
 const _statements = new Syntax<string, StatementGenerator>()
     .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res))
     .add([token("join"), parameterList(true)], (dep, res) => new SJoin(dep, res))
+    .add([token("replace"), parameterList(false)], (dep, res) => new SReplace(dep, res))
 ;
 
 type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
@@ -305,7 +314,7 @@ function expressionLike(stop?: string):SingleMatch<string> {
         if(lPars < rPars) return false;
         if(lPars > rPars) return null;
         return true;
-    }, "exp");
+    }, false, "exp");
 }
 function parameterList(optional?: boolean): SingleMatch<string>{
     return Match.testPattern(pattern(
@@ -345,6 +354,11 @@ class SSplit extends IStatement{
     }
 }
 
+class SNoop extends IStatement{
+    public constructor(depth: number){super(depth);}
+    public process(state: InterpreterState) {}
+}
+
 class SJoin extends IStatement{
     __exp: IExpression;
     public constructor(depth: number, parse: PatternResult<string>){
@@ -354,10 +368,30 @@ class SJoin extends IStatement{
             this.__exp = pars[0];
     }
     public process(state: InterpreterState) {
-        if(state.stream.array === null) throw "cannot join stream - expected string";
+        if(state.stream.array === null) throw "cannot join stream - expected array";
         let delim = "\n";
         if(this.__exp) delim = this.__exp.EvalAsText(state);
         state.updateStream(Stream.mkText(state.stream.array.map(s => s.asString()).join(delim)));
+    }
+}
+
+class SReplace extends IStatement{
+    __target: IExpression;
+    __replacement: IExpression;
+    public constructor(depth: number, parse: PatternResult<string>){
+        super(depth);
+        var pars = Parser.tryParseParamList(parse);
+        if(assertParams(pars, 2, 2))
+        {
+            this.__target = pars[0];
+            this.__replacement = pars[1];
+        }
+    }
+    public process(state: InterpreterState) {
+        if(!state.stream.isText) throw "cannot replace stream - expected string";
+        let target = this.__target.Eval(state);
+        let replace = this.__replacement.Eval(state);
+        state.updateStream(Stream.mkText(state.stream.text.replaceAll(target.asString(), replace.asString())));
     }
 }
 
@@ -421,9 +455,11 @@ class EOperator extends IExpression{
     public static SplitEquation(stack: IExpression[], ops: string[]) : IExpression{
         let opIdx: number[] = ops.map((o, i) => i);
         opIdx.sort((a,b) => {
+            // sorts higher operators to later
+            if(a === b) return 0; // shouldn't happen?
             const aa = EOperator.OpPriority(ops[a]);
             const bb = EOperator.OpPriority(ops[b]);
-            if(aa == bb) return 0;
+            if(aa == bb) return (a > b) ? 1 : -1;
             if(aa > bb) return 1;
             if(aa < bb) return -1;
             throw 'unreachable';
@@ -449,8 +485,27 @@ class EOperator extends IExpression{
         }
     }
     public static OpPriority(op: string): number{
-        // this is complicated, and will rarely matter...
-        throw 'not implemented';
+        // higher means later
+        switch(op){
+            case ".": return 1;
+            case "*":
+            case "/": 
+                return 2;
+            case "+":
+            case "-":
+                return 3;
+            case "=":
+            case "!=":
+            case "<":
+            case ">":
+            case "<=":
+            case ">=":
+                return 4;
+            case "&":
+            case "|":
+                return 4;
+            default: throw 'operator does not have priority?';
+        }
     }
 }
 
