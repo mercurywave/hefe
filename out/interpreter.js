@@ -10,7 +10,6 @@ export class Interpreter {
             if (step == null)
                 return { output: state.stream, step: state.line, isComplete: false, error: "could not parse line: " + ln };
             state.line = ln;
-            console.log("tab" + step.tabDepth);
             if (step.tabDepth > state.scopeDepth)
                 state.pushScope(code[ln - 1]);
             while (state.scopeDepth > step.tabDepth)
@@ -30,9 +29,7 @@ export class Interpreter {
     }
     static async parallelProcess(state, depth, child) {
         var stack = state.getStack(depth);
-        console.log("d" + depth);
         if (depth == state.stackDepth - 1) {
-            console.log("a");
             if (stack.parallellMode) {
                 var stream = stack.rawStream.asArray();
                 for (let index = 0; index < stream.length; index++) {
@@ -45,7 +42,6 @@ export class Interpreter {
             }
         }
         else if (stack.parallellMode) {
-            console.log("b");
             var stream = stack.rawStream.asArray();
             for (let index = 0; index < stream.length; index++) {
                 stack.parallelLine = index;
@@ -53,7 +49,6 @@ export class Interpreter {
             }
         }
         else {
-            console.log("c");
             await this.parallelProcess(state, depth + 1, child);
         }
     }
@@ -95,13 +90,11 @@ export class InterpreterState {
     }
     // "scope" is the statement/tab depth
     pushScope(statement) {
-        console.log("push");
         this.__nest.push(statement);
         statement.onOpenChildScope(this);
     }
     get scopeDepth() { return this.__nest.length; }
     popScope() {
-        console.log("pop");
         const pop = this.__nest.pop();
         pop.onCloseChildScope(this);
         return pop;
@@ -383,7 +376,10 @@ const _statements = new Syntax()
     .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res))
     .add([token("join"), parameterList(true)], (dep, res) => new SJoin(dep, res))
     .add([token("replace"), parameterList(false)], (dep, res) => new SReplace(dep, res))
-    .add([token("map")], (dep, res) => new SMap(dep));
+    .add([token("map")], (dep, res) => new SMap(dep))
+    .add([token("filter")], (dep, res) => new SFilter(dep))
+    .add([token("contains"), parameterList(false)], (dep, res) => new SContains(dep, res))
+    .add([token("piece"), parameterList(false)], (dep, res) => new SPiece(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
     .add([identifier()], res => new EIdentifier(res))
@@ -461,6 +457,24 @@ class SMap extends IStatement {
         state.updateStream(state.popStack());
     }
 }
+class SFilter extends IStatement {
+    constructor(depth) {
+        super(depth);
+    }
+    async process(state) {
+        if (!state.stream.isArray)
+            throw 'map function expected to process an array';
+    }
+    onOpenChildScope(state) {
+        state.pushStack(state.stream.copy(), true);
+    }
+    onCloseChildScope(state) {
+        const result = state.popStack().asArray();
+        const prev = state.stream.asArray();
+        const filtered = prev.filter((v, i) => result[i].asBool());
+        state.updateStream(Stream.mkArr(filtered));
+    }
+}
 class SSplit extends IStatement {
     constructor(depth, parse) {
         super(depth);
@@ -507,13 +521,44 @@ class SReplace extends IStatement {
         }
     }
     async process(state) {
-        console.log(state.stackLvl);
-        console.log(state.stream);
         if (!state.stream.isText)
             throw "cannot replace stream - expected string";
         let target = await this.__target.Eval(state);
         let replace = await this.__replacement.Eval(state);
         state.updateStream(Stream.mkText(state.stream.text.replaceAll(target.asString(), replace.asString())));
+    }
+}
+class SContains extends IStatement {
+    constructor(depth, parse) {
+        super(depth);
+        var pars = Parser.tryParseParamList(parse);
+        if (assertParams(pars, 1, 1))
+            this.__target = pars[0];
+    }
+    async process(state) {
+        if (!state.stream.isText)
+            throw "cannot replace stream - expected string";
+        let target = await this.__target.Eval(state);
+        state.updateStream(Stream.mkBool(state.stream.text.includes(target.asString())));
+    }
+}
+class SPiece extends IStatement {
+    constructor(depth, parse) {
+        super(depth);
+        var pars = Parser.tryParseParamList(parse);
+        if (assertParams(pars, 2, 2)) {
+            this.__delim = pars[0];
+            this.__idx = pars[1];
+        }
+    }
+    async process(state) {
+        if (!state.stream.isText)
+            throw "cannot replace stream - expected string";
+        const orig = state.stream.asString();
+        const target = await (await this.__delim.Eval(state)).asString();
+        const idx = await (await this.__idx.Eval(state)).asNum();
+        const split = orig.split(target);
+        state.updateStream(Stream.mkText(split[idx - 1]));
     }
 }
 class EIdentifier extends IExpression {
