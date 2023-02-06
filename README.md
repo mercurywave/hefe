@@ -12,6 +12,10 @@ Filter
     Split(",") >> Idx(1) >> Contains("foo")
 Join("\n")
 
+a := stream
+b := a.replace(",","_")
+stream.replace("|", "\n")
+
 fn Splitter("|")
     SplitEscaped("|", "\|")
 
