@@ -10,46 +10,29 @@ export class Interpreter{
 
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
-            if(step == null) return {output: state.stream, step: state.line, isComplete: false, error: "could not parse line: " + ln};
+            console.log("------");
+            if(step == null) return {output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln};
             state.line = ln;
-            if(step.tabDepth > state.scopeDepth)
-                state.pushScope(code[ln - 1]);
-            while(state.scopeDepth > step.tabDepth)
-                state.popScope();
+            if(step.tabDepth + 1 > state.depth)
+                state.pushStack(code[ln - 1]);
+            while(state.depth > step.tabDepth + 1)
+                state.popStack();
             try{
                 await Interpreter.parallelProcess(state, 0, step);
             } catch(err){
                 console.log(err);
-                return {output: state.stream, step: state.line, isComplete: false, error: err};
+                return {output: state.exportAsStream(), step: state.line, isComplete: false, error: err};
             }
             await new Promise(f => setTimeout(f, 10));
             if(currGen != this.__gen) return null;
         }
-        return {output: state.stream, step:  state.line, isComplete: true};
+        return {output: state.exportAsStream(), step:  state.line, isComplete: true};
     }
     
     static async parallelProcess(state: InterpreterState, depth: number, child: IStatement): Promise<void>{
-        var stack = state.getStack(depth);
-        if(depth == state.stackDepth - 1){
-            if(stack.parallellMode){
-                var stream = stack.rawStream.asArray();
-                for (let index = 0; index < stream.length; index++) {
-                    stack.parallelLine = index;
-                    await child.process(state);
-                }
-            }
-            else{
-                await child.process(state);
-            }
-        } else if(stack.parallellMode){
-            var stream = stack.rawStream.asArray();
-            for (let index = 0; index < stream.length; index++) {
-                stack.parallelLine = index;
-                await this.parallelProcess(state, depth+1, child);
-            }
-        } else{
-            await this.parallelProcess(state, depth + 1, child);
-        }
+        let futures: Promise<void>[] = [];
+        state.foreachExecution(context => futures.push(child.process(context)) );
+        await Promise.all(futures);
     }
 }
 
@@ -60,91 +43,113 @@ export interface TransformResult{
     error?: string
 }
 
-export class InterpreterState{
-    __stack: StackLevel[];
-    __nest: IStatement[] = [];
-    public line: number = -1;
+export class ExecutionContext{
+    __currBranch: StackBranch[];
+    __state: InterpreterState;
 
-    public get stream(): Stream { return this.stackLvl.stream;}
-    public get stackLvl(): StackLevel { return this.__stack[this.__stack.length - 1]; }
-
-    public constructor(stream: string){
-        this.__stack = [new StackLevel(new Stream(stream), false)];
+    public constructor(currBranch: StackBranch[], state: InterpreterState){
+        this.__currBranch = currBranch;
+        this.__state = state;
     }
+
+    public get stream(): Stream { return this.leafNode.stream;}
+    public get leafNode(): StackBranch { return this.__currBranch[this.__currBranch.length - 1]; }
 
     public updateStream(stream: Stream){
-        var stack = this.stackLvl;
+        var stack = this.leafNode;
         stack.stream = stream;
     }
-    // "stack" refers to the data stack, which may or may not correlate to the "scope"
-    public pushStack(stream: Stream, parallel: boolean){
-        this.__stack.push(new StackLevel(stream, parallel));
-    }
-    public popStack(): Stream{
-        return this.__stack.pop().rawStream;
-    }
-    public getStack(idx: number): StackLevel{
-        return this.__stack[idx];
-    }
-    public get stackDepth(): number { return this.__stack.length; }
     public saveVar(name: string, value: Stream){
-        this.stackLvl.set(name, value);
+        this.leafNode.set(name, value);
     }
     public get(name: string): Stream | null{
-        for(let idx = this.__stack.length - 1; idx >= 0; idx--){
-            const obj = this.__stack[idx].get(name);
+        for(let idx = this.__currBranch.length - 1; idx >= 0; idx--){
+            const obj = this.__currBranch[idx].get(name);
             if(obj != null) return obj;
         }
         return null;
     }
-    // "scope" is the statement/tab depth
-    public pushScope(statement: IStatement){
-        this.__nest.push(statement); 
-        statement.onOpenChildScope(this);
+}
+
+export class InterpreterState{
+    __tree: StackBranch;
+    __scopes: IStatement[] = [null];
+    public line: number = -1;
+
+    public constructor(stream: string){
+        this.__tree = new StackBranch(Stream.mkText(stream));
     }
-    public get scopeDepth(): number {return this.__nest.length;}
-    public popScope(): IStatement {
-        const pop = this.__nest.pop();
-        pop.onCloseChildScope(this);
-        return pop;
+
+    public get depth(): number {return this.__scopes.length;}
+
+    public foreachExecution(action: (context: ExecutionContext) => void, depth?: number){
+        this.foreachChain((c) => action(new ExecutionContext(c, this)));
+    }
+    foreachChain(action: (chain: StackBranch[], leaf: StackBranch) => void, depth?: number){
+        this.chainIterHelper(action, this.__tree, [this.__tree], depth ?? (this.depth - 1));
+    }
+    chainIterHelper(action: (chain: StackBranch[], leaf: StackBranch) => void, node: StackBranch, chain: StackBranch[], depth: number){
+        if(depth == 0){
+            action(chain, node);
+        }
+        else {
+            for (const branch of node.__branches) {
+                this.chainIterHelper(action, branch, chain.slice().concat(branch), depth - 1);
+            }
+        }
+    }
+
+    public pushStack(state: IStatement){
+        this.foreachChain((chain, leaf) => {
+            const context = new ExecutionContext(chain, this);
+            const streams = state.onOpenChildScope(context);
+            leaf.branches = streams.map(s => new StackBranch(s));
+        });
+        this.__scopes.push(state); // run after because this affects depth calculation
+    }
+    public popStack(){
+        let owner = this.__scopes.pop();
+        // since we popped, the leafs have branches
+        this.foreachChain((chain, leaf) => {
+            const context = new ExecutionContext(chain, this);
+            const branches = leaf.branches.map(b => b.stream);
+            owner.onCloseChildScope(context, branches);
+            leaf.branches = null;
+        });
+    }
+
+    public exportAsStream(): Stream{
+        if(this.depth == 1)
+            return this.__tree.stream;
+        let streams: Stream[] = [];
+        this.foreachChain((c,l) => streams.push(l.stream));
+        if(streams.length == 1) return streams[0];
+        return Stream.mkArr(streams);
     }
 }
 
-class StackLevel{
+class StackBranch{
     __stream: Stream;
+    __branches: StackBranch[];
     variables: Record<string, Stream> = {};
-    parallellMode: boolean;
-    parallelLine: number = -1;
-    public constructor(stream: Stream, parallel: boolean){ this.__stream = stream; this.parallellMode = parallel; }
+    public constructor(stream: Stream){
+        this.__stream = stream;
+    }
     public get(name: string): Stream | null{
-        if(this.parallellMode)
-            return this.variables[name].asArray()[this.parallelLine];
         return this.variables[name];
     }
     public set(name: string, value: Stream){
-        if(this.parallellMode)
-        {
-            if(this.variables[name] == null)
-                this.variables[name] = Stream.mkArr([]);
-            this.variables[name].asArray()[this.parallelLine] = value;
-        }
-        else
-            this.variables[name] = value;
+        this.variables[name] = value;
     }
-    public get stream(): Stream{
-        if(this.parallellMode){
-            return this.__stream.asArray()[this.parallelLine];
-        }
-        return this.__stream;
+    public get stream(): Stream { return this.__stream; }
+    public set stream(stream: Stream) { this.__stream = stream; }
+    public set branches(leafs: StackBranch[]) {this.__branches = leafs;}
+    public get branches(): StackBranch[] { return this.__branches; }
+    public addBranch(leaf: StackBranch) {
+        if(this.__branches == null)
+            this.__branches = [];
+        this.__branches.push(leaf);
     }
-    public set stream(stream: Stream){
-        if(this.parallellMode){
-            this.__stream.asArray()[this.parallelLine] = stream;
-        } else{
-            this.__stream = stream;
-        }
-    }
-    public get rawStream(): Stream{ return this.__stream; }
 }
 
 export enum eStreamType{
@@ -170,12 +175,13 @@ export class Stream {
     }
 
     public toDisplayText(nested?:number) : string{
-        if(this.text) {
+        if(this.isText) {
             if(nested > 0) return "\"" + this.text + "\"";
             return this.text;
         }
-        if(this.num) return "" + this.num;
-        if(this.array) return "[\n" + this.array.map(s => " " + s.toDisplayText((nested ?? 0) + 1)).join(",\n") + "\n]";
+        if(this.isNum) return "" + this.num;
+        if(this.isBool) return "" + this.bool;
+        if(this.isArray) return "[\n" + this.array.map(s => " " + s.toDisplayText((nested ?? 0) + 1)).join(",\n") + "\n]";
         return "???";
     }
 
@@ -381,15 +387,15 @@ abstract class IStatement{
     public constructor(depth: number){
         this.tabDepth = depth;
     }
-    public abstract process(state: InterpreterState):Promise<void>;
-    public onOpenChildScope(state: InterpreterState) { throw ''; } // do these need to be parallel? probably not
-    public onCloseChildScope(state: InterpreterState) { }
+    public abstract process(context: ExecutionContext):Promise<void>;
+    public onOpenChildScope(context: ExecutionContext):Stream[] { throw ''; } // do these need to be parallel? probably not
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]) { }
 }
 
 abstract class IExpression{
-    public abstract Eval(state: InterpreterState): Promise<Stream>;
-    public async EvalAsText(state: InterpreterState): Promise<string>{
-        let out = await this.Eval(state);
+    public abstract Eval(context: ExecutionContext): Promise<Stream>;
+    public async EvalAsText(context: ExecutionContext): Promise<string>{
+        let out = await this.Eval(context);
         if(out.text == null) throw 'expected expression to evaluate as string, got '+ out.toDisplayText();
         return out.text;
     }
@@ -434,10 +440,10 @@ class SMultiStatement extends IStatement{
         super(depth);
         this.__list = list;
     }
-    public override async process(state: InterpreterState): Promise<void> {
+    public override async process(context: ExecutionContext): Promise<void> {
         for (let index = 0; index < this.__list.length; index++) {
             const substate = this.__list[index];
-            await substate.process(state);
+            await substate.process(context);
         }
     }
 }
@@ -446,14 +452,14 @@ class SMap extends IStatement{
     public constructor(depth: number){
         super(depth);
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(!state.stream.isArray) throw 'map function expected to process an array';
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isArray) throw 'map function expected to process an array';
     }
-    public onOpenChildScope(state: InterpreterState){
-        state.pushStack(state.stream.copy(), true);
+    public onOpenChildScope(context: ExecutionContext):Stream[]{
+        return context.stream.asArray().slice();
     }
-    public onCloseChildScope(state: InterpreterState){
-        state.updateStream(state.popStack());
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]){
+        context.updateStream(Stream.mkArr(streams));
     }
 }
 
@@ -461,17 +467,16 @@ class SFilter extends IStatement{
     public constructor(depth: number){
         super(depth);
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(!state.stream.isArray) throw 'map function expected to process an array';
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isArray) throw 'map function expected to process an array';
     }
-    public onOpenChildScope(state: InterpreterState){
-        state.pushStack(state.stream.copy(), true);
+    public onOpenChildScope(context: ExecutionContext):Stream[]{
+        return context.stream.asArray().slice();
     }
-    public onCloseChildScope(state: InterpreterState){
-        const result = state.popStack().asArray();
-        const prev = state.stream.asArray();
-        const filtered = prev.filter((v,i) => result[i].asBool());
-        state.updateStream(Stream.mkArr(filtered));
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]){
+        const prev = context.stream.asArray();
+        const filtered = prev.filter((v,i) => streams[i].asBool());
+        context.updateStream(Stream.mkArr(filtered));
     }
 }
 
@@ -483,17 +488,17 @@ class SSplit extends IStatement{
         if(assertParams(pars, 0, 1))
             this.__exp = pars[0];
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(state.stream.text === null) throw "cannot split stream - expected string";
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isText) throw "cannot split stream - expected string";
         let delim = "\n";
-        if(this.__exp) delim = await this.__exp.EvalAsText(state);
-        state.updateStream(new Stream(null, state.stream.text.split(delim).map(s => new Stream(s))));
+        if(this.__exp) delim = await this.__exp.EvalAsText(context);
+        context.updateStream(new Stream(null, context.stream.text.split(delim).map(s => new Stream(s))));
     }
 }
 
 class SNoop extends IStatement{
     public constructor(depth: number){super(depth);}
-    public async process(state: InterpreterState): Promise<void> {}
+    public async process(context: ExecutionContext): Promise<void> {}
 }
 
 class SJoin extends IStatement{
@@ -504,11 +509,11 @@ class SJoin extends IStatement{
         if(assertParams(pars, 0, 1))
             this.__exp = pars[0];
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(state.stream.array === null) throw "cannot join stream - expected array";
+    public async process(context: ExecutionContext): Promise<void> {
+        if(context.stream.array === null) throw "cannot join stream - expected array";
         let delim = "\n";
-        if(this.__exp) delim = await this.__exp.EvalAsText(state);
-        state.updateStream(Stream.mkText(state.stream.array.map(s => s.asString()).join(delim)));
+        if(this.__exp) delim = await this.__exp.EvalAsText(context);
+        context.updateStream(Stream.mkText(context.stream.array.map(s => s.asString()).join(delim)));
     }
 }
 
@@ -524,11 +529,11 @@ class SReplace extends IStatement{
             this.__replacement = pars[1];
         }
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(!state.stream.isText) throw "cannot replace stream - expected string";
-        let target = await this.__target.Eval(state);
-        let replace = await this.__replacement.Eval(state);
-        state.updateStream(Stream.mkText(state.stream.text.replaceAll(target.asString(), replace.asString())));
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isText) throw "cannot replace stream - expected string";
+        let target = (await this.__target.Eval(context)).asString();
+        let replace =(await this.__replacement.Eval(context)).asString();
+        context.updateStream(Stream.mkText(context.stream.text.replaceAll(target, replace)));
     }
 }
 
@@ -540,10 +545,10 @@ class SContains extends IStatement{
         if(assertParams(pars, 1, 1))
             this.__target = pars[0];
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(!state.stream.isText) throw "cannot replace stream - expected string";
-        let target = await this.__target.Eval(state);
-        state.updateStream(Stream.mkBool(state.stream.text.includes(target.asString())));
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isText) throw "cannot check contains stream - expected string";
+        let target = await this.__target.Eval(context);
+        context.updateStream(Stream.mkBool(context.stream.text.includes(target.asString())));
     }
 }
 
@@ -559,13 +564,13 @@ class SPiece extends IStatement{
             this.__idx = pars[1];
         }
     }
-    public async process(state: InterpreterState): Promise<void> {
-        if(!state.stream.isText) throw "cannot replace stream - expected string";
-        const orig = state.stream.asString();
-        const target = await (await this.__delim.Eval(state)).asString();
-        const idx = await (await this.__idx.Eval(state)).asNum();
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isText) throw "cannot replace stream - expected string";
+        const orig = context.stream.asString();
+        const target = await (await this.__delim.Eval(context)).asString();
+        const idx = await (await this.__idx.Eval(context)).asNum();
         const split = orig.split(target);
-        state.updateStream(Stream.mkText(split[idx - 1]));
+        context.updateStream(Stream.mkText(split[idx - 1]));
     }
 }
 
@@ -574,7 +579,7 @@ class EIdentifier extends IExpression{
     public constructor(parse: PatternResult<string>){
         super();
     }
-    public async Eval(state: InterpreterState): Promise<Stream> {
+    public async Eval(context: ExecutionContext): Promise<Stream> {
         throw '';
     }
 }
@@ -585,7 +590,7 @@ class ENumericLiteral extends IExpression{
         super();
         this.__num = Number.parseFloat(parse.PullOnlyResult());
     }
-    public async Eval(state: InterpreterState): Promise<Stream> {
+    public async Eval(context: ExecutionContext): Promise<Stream> {
         return new Stream(null, null, this.__num);
     }
 }
@@ -599,7 +604,7 @@ class EStringLiteral extends IExpression{
         this.__str = JSON.parse(str);// str.substring(1, str.length - 1).replace();
         
     }
-    public async Eval(state: InterpreterState): Promise<Stream> {
+    public async Eval(context: ExecutionContext): Promise<Stream> {
         return new Stream(this.__str);
     }
 }
@@ -611,8 +616,8 @@ class EExpression extends IExpression{
         let tokes = parse.tryGetByKey("exp");
         this.__inner = Parser.tryParseExpression(tokes);
     }
-    public async Eval(state: InterpreterState): Promise<Stream> {
-        return this.__inner.Eval(state);
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        return this.__inner.Eval(context);
     }
 }
 
@@ -646,9 +651,9 @@ class EOperator extends IExpression{
         // all the expressions in the stack should now point to the same operation
         return stack[0];
     }
-    public async Eval(state: InterpreterState): Promise<Stream> {
-        const a = await this.__left.Eval(state);
-        const b = await this.__right.Eval(state);
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        const a = await this.__left.Eval(context);
+        const b = await this.__right.Eval(context);
         return a.runOp(this.__op, b);
     }
     public static IsOperator(op: string): boolean{

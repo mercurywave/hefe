@@ -90,7 +90,7 @@ export class Workspace {
         var parse = Parser.Parse(code);
         console.log(parse);
         let res = await Interpreter.Process(this._txtInput.value, parse);
-        if (res.error)
+        if (res?.error)
             this.ShowError(res.error);
         else if (res != null) {
             this._txtOutput.value = res.output.toDisplayText();
