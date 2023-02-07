@@ -233,6 +233,13 @@ export class Stream {
             default: throw 'operator ' + op + ' is not implemented';
         }
     }
+    public runUnary(op: string): Stream{
+        switch(op){
+            case "!": return Stream.mkBool(this.asBool());
+            case "-": return Stream.mkNum(-this.asNum());
+            default: throw `unary not implemented ${op}`;
+        }
+    }
     public toRaw(): string | number | boolean | Stream[] | null {
         return this.text ?? this.num ?? this.bool ?? this.array;
     }
@@ -386,6 +393,7 @@ const _expressionComps = new Syntax<string, ExpressionGenerator>()
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
     .add([identifier()],res => new EIdentifier(res))
+    .add([unary(), expressionLike()], res => new EUnary(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
     .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
@@ -413,6 +421,10 @@ abstract class IExpression{
 
 function token(match: string):SingleMatch<string> {
     return Match.token(match);
+}
+
+function unary(): SingleMatch<string>{
+    return Match.anyOf(["!", "-"], false, "unary");
 }
 
 function identifier():SingleMatch<string> {
@@ -591,6 +603,21 @@ class EExpression extends IExpression{
     }
 }
 
+class EUnary extends IExpression{
+    __right: IExpression;
+    __op: string;
+
+    public constructor(parse: PatternResult<string>){
+        super();
+        this.__right = Parser.tryParseExpression(parse.tryGetByKey("exp"));
+        this.__op = parse.getSingleKey("unary");
+    }
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        const a = await this.__right.Eval(context);
+        return a.runUnary(this.__op);
+    }
+}
+
 class EOperator extends IExpression{
     __left: IExpression;
     __right: IExpression;
@@ -729,6 +756,14 @@ regFunc("modulo", 1, 1, async (c, stream, pars) =>{
     if(!stream.isNum) throw "cannot modulo stream - expected number";
     const m = (await pars[0].Eval(c)).asNum();
     return Stream.mkNum(((stream.num % m) + m) % m);
+});
+
+regFunc("slice", 1, 2, async (c, stream, pars) =>{
+    if(!stream.isText) throw "cannot slice stream - expected string"; // TODO: apply to arrays
+    const start = (await pars[0].Eval(c)).asNum();
+    let end = null;
+    if(pars.length > 1) end = (await pars[1].Eval(c)).asNum();
+    return Stream.mkText(stream.asString().slice(start, end));
 });
 
 function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {
