@@ -725,6 +725,12 @@ regFunc("contains", 1, 1, async (c, stream, pars) =>{
     return Stream.mkBool(stream.text.includes(target));
 });
 
+regFunc("modulo", 1, 1, async (c, stream, pars) =>{
+    if(!stream.isNum) throw "cannot modulo stream - expected number";
+    const m = (await pars[0].Eval(c)).asNum();
+    return Stream.mkNum(((stream.num % m) + m) % m);
+});
+
 function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {
     _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
 }

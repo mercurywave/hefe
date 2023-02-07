@@ -694,6 +694,12 @@ regFunc("contains", 1, 1, async (c, stream, pars) => {
     const target = await pars[0].EvalAsText(c);
     return Stream.mkBool(stream.text.includes(target));
 });
+regFunc("modulo", 1, 1, async (c, stream, pars) => {
+    if (!stream.isNum)
+        throw "cannot modulo stream - expected number";
+    const m = (await pars[0].Eval(c)).asNum();
+    return Stream.mkNum(((stream.num % m) + m) % m);
+});
 function regFunc(name, minP, maxP, action) {
     _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
 }
