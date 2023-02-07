@@ -75,12 +75,12 @@ export class ExecutionContext{
 }
 
 export class InterpreterState{
-    __tree: StackBranch;
+    __root: StackBranch;
     __scopes: IStatement[] = [null];
     public line: number = -1;
 
     public constructor(stream: string){
-        this.__tree = new StackBranch(Stream.mkText(stream));
+        this.__root = new StackBranch(Stream.mkText(stream));
     }
 
     public get depth(): number {return this.__scopes.length;}
@@ -89,7 +89,7 @@ export class InterpreterState{
         this.foreachChain((c) => action(new ExecutionContext(c, this)));
     }
     foreachChain(action: (chain: StackBranch[], leaf: StackBranch) => void, depth?: number){
-        this.chainIterHelper(action, this.__tree, [this.__tree], depth ?? (this.depth - 1));
+        this.chainIterHelper(action, this.__root, [this.__root], depth ?? (this.depth - 1));
     }
     chainIterHelper(action: (chain: StackBranch[], leaf: StackBranch) => void, node: StackBranch, chain: StackBranch[], depth: number){
         if(depth == 0){
@@ -123,7 +123,7 @@ export class InterpreterState{
 
     public exportAsStream(): Stream{
         if(this.depth == 1)
-            return this.__tree.stream;
+            return this.__root.stream;
         let streams: Stream[] = [];
         this.foreachChain((c,l) => streams.push(l.stream));
         if(streams.length == 1) return streams[0];
@@ -164,10 +164,10 @@ export class Stream {
     public num? : number;
     public bool? : boolean;
     public constructor(text?: string, array?: Stream[], num?: number, bool?: boolean){
-        this.text = text;
-        this.array = array;
-        this.num = num;
-        this.bool = bool;
+        this.text = text ?? null;
+        this.array = array ?? null;
+        this.num = num ?? null;
+        this.bool = bool ?? null;
     }
     public static mkText(text: string): Stream{ return new Stream(text);}
     public static mkArr(arr: Stream[]): Stream{ return new Stream(null, arr);}

@@ -66,14 +66,14 @@ export class InterpreterState {
     constructor(stream) {
         this.__scopes = [null];
         this.line = -1;
-        this.__tree = new StackBranch(Stream.mkText(stream));
+        this.__root = new StackBranch(Stream.mkText(stream));
     }
     get depth() { return this.__scopes.length; }
     foreachExecution(action, depth) {
         this.foreachChain((c) => action(new ExecutionContext(c, this)));
     }
     foreachChain(action, depth) {
-        this.chainIterHelper(action, this.__tree, [this.__tree], depth ?? (this.depth - 1));
+        this.chainIterHelper(action, this.__root, [this.__root], depth ?? (this.depth - 1));
     }
     chainIterHelper(action, node, chain, depth) {
         if (depth == 0) {
@@ -105,7 +105,7 @@ export class InterpreterState {
     }
     exportAsStream() {
         if (this.depth == 1)
-            return this.__tree.stream;
+            return this.__root.stream;
         let streams = [];
         this.foreachChain((c, l) => streams.push(l.stream));
         if (streams.length == 1)
@@ -143,10 +143,10 @@ export var eStreamType;
 })(eStreamType || (eStreamType = {}));
 export class Stream {
     constructor(text, array, num, bool) {
-        this.text = text;
-        this.array = array;
-        this.num = num;
-        this.bool = bool;
+        this.text = text ?? null;
+        this.array = array ?? null;
+        this.num = num ?? null;
+        this.bool = bool ?? null;
     }
     static mkText(text) { return new Stream(text); }
     static mkArr(arr) { return new Stream(null, arr); }
