@@ -11,8 +11,6 @@ export class Interpreter {
             const step = code[ln];
             if (step instanceof SNoop)
                 continue;
-            if (step instanceof SExit)
-                break;
             console.log("------" + ln);
             if (step == null)
                 return { output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln };
@@ -21,6 +19,8 @@ export class Interpreter {
                 state.pushStack(lastScope);
             while (state.depth > step.tabDepth + 1)
                 state.popStack();
+            if (step instanceof SExit)
+                break;
             try {
                 await Interpreter.parallelProcess(state, 0, step);
             }
