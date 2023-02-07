@@ -398,6 +398,7 @@ abstract class IExpression{
         if(out.text == null) throw 'expected expression to evaluate as string, got '+ out.toDisplayText();
         return out.text;
     }
+    public async EvalAsMethod(context: ExecutionContext, stream: Stream): Promise<Stream> {throw 'expression is not a method';}
 }
 
 function token(match: string):SingleMatch<string> {
@@ -512,6 +513,12 @@ class EIdentifier extends IExpression{
         if(obj == null) throw `unknown variable "${this.name}"`;
         return obj;
     }
+    public async EvalAsMethod(context: ExecutionContext, stream: Stream): Promise<Stream> {
+        let func = _builtInFuncs[this.name];
+        if(func != null){
+            return await EFunctionCall.runFunc(this.name, [], context, stream);
+        }
+    }
 }
 
 class EStream extends IExpression{
@@ -592,6 +599,9 @@ class EOperator extends IExpression{
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
         const a = await this.__left.Eval(context);
+        if(this.__op == ":"){
+            return await this.__right.EvalAsMethod(context, a);
+        }
         const b = await this.__right.Eval(context);
         return a.runOp(this.__op, b);
     }
@@ -599,13 +609,15 @@ class EOperator extends IExpression{
         switch (op) {
             case "!=":
                 return true;
-            default: return "+-=*/&|<>".includes(op);
+            default: return "+-=*/&|<>.:".includes(op);
         }
     }
     public static OpPriority(op: string): number{
         // higher means later
         switch(op){
-            case ".": return 1;
+            case ".":
+            case ":":
+                return 1;
             case "*":
             case "/": 
                 return 2;
@@ -644,6 +656,9 @@ class EFunctionCall extends IExpression{
         if(params.length < func.minP || params.length > func.maxP)
             throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
         return await func.action(context, stream, params);
+    }
+    public async EvalAsMethod(context: ExecutionContext, stream: Stream): Promise<Stream> {
+        return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
 }
 

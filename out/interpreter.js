@@ -395,6 +395,7 @@ class IExpression {
             throw 'expected expression to evaluate as string, got ' + out.toDisplayText();
         return out.text;
     }
+    async EvalAsMethod(context, stream) { throw 'expression is not a method'; }
 }
 function token(match) {
     return Match.token(match);
@@ -498,6 +499,12 @@ class EIdentifier extends IExpression {
             throw `unknown variable "${this.name}"`;
         return obj;
     }
+    async EvalAsMethod(context, stream) {
+        let func = _builtInFuncs[this.name];
+        if (func != null) {
+            return await EFunctionCall.runFunc(this.name, [], context, stream);
+        }
+    }
 }
 class EStream extends IExpression {
     constructor() {
@@ -570,6 +577,9 @@ class EOperator extends IExpression {
     }
     async Eval(context) {
         const a = await this.__left.Eval(context);
+        if (this.__op == ":") {
+            return await this.__right.EvalAsMethod(context, a);
+        }
         const b = await this.__right.Eval(context);
         return a.runOp(this.__op, b);
     }
@@ -577,13 +587,15 @@ class EOperator extends IExpression {
         switch (op) {
             case "!=":
                 return true;
-            default: return "+-=*/&|<>".includes(op);
+            default: return "+-=*/&|<>.:".includes(op);
         }
     }
     static OpPriority(op) {
         // higher means later
         switch (op) {
-            case ".": return 1;
+            case ".":
+            case ":":
+                return 1;
             case "*":
             case "/":
                 return 2;
@@ -620,6 +632,9 @@ class EFunctionCall extends IExpression {
         if (params.length < func.minP || params.length > func.maxP)
             throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
         return await func.action(context, stream, params);
+    }
+    async EvalAsMethod(context, stream) {
+        return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
 }
 const _builtInFuncs = {};

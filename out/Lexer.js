@@ -22,9 +22,9 @@ export class Lexer {
 }
 const _symbols = new Syntax()
     .add([symbols(" \t")], false)
-    .add([tokens(":=", ">>", "!=", "<=", ">=")], true)
+    .add([tokens(":=", ">>", "!=", "<=", ">=", "<<")], true)
     .add([tokens("//"), Match.anything(true)], false)
-    .add([symbols("+-=/*!;\\(),.")], true)
+    .add([symbols("+-=/*!;\\(),.:")], true)
     .add([number()], true)
     .add([word()], true)
     .add([tokens("\"\"")], true) // easier to special case an empty string
