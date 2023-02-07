@@ -11,6 +11,8 @@ export class Workspace {
     private _txtOutput : HTMLTextAreaElement;
     private _txtEditor : HTMLTextAreaElement;
 
+    private _fileName: string;
+
     public constructor(pane: HTMLElement)
     {
         this._paneMain = pane;
@@ -80,8 +82,9 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            this.process();
+            this._fileName = file.name;
             this._lblFile.textContent = "Hefe - " + file.name;
+            this.process();
         };
         reader.readAsText(file);
     }
@@ -115,7 +118,11 @@ export class Workspace {
     public async asyncProcess(code: string){
         var parse = Parser.Parse(code);
         console.log(parse);
-        let res = await Interpreter.Process(this._txtInput.value, parse);
+        const input = {
+            text: this._txtInput.value,
+            fileName: this._fileName ?? "[temp file]",
+        }
+        let res = await Interpreter.Process(input, parse);
         if(res?.error)
             this.ShowError(res.error);
         else if(res != null)

@@ -1,10 +1,16 @@
 import { Lexer } from "./Lexer.js";
 import { Match, Pattern, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
 
+export interface InputContext{
+    text: string;
+    fileName: string;
+}
+
 export class Interpreter{
     static __gen = 0;
-    public static async Process(input: string, code: IStatement[]): Promise<TransformResult>{
-        let state = new InterpreterState(input);
+    public static async Process(input: InputContext, code: IStatement[]): Promise<TransformResult>{
+        let state = new InterpreterState(input.text);
+        state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         this.__gen++;
         let currGen = this.__gen;
         let lastScope:IStatement | null = null;
@@ -128,6 +134,10 @@ export class InterpreterState{
         this.foreachChain((c,l) => streams.push(l.stream));
         if(streams.length == 1) return streams[0];
         return Stream.mkArr(streams);
+    }
+
+    public setGlobalVal(name: string, value: Stream){
+        this.__root.set(name, value);
     }
 }
 

@@ -61,8 +61,9 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            this.process();
+            this._fileName = file.name;
             this._lblFile.textContent = "Hefe - " + file.name;
+            this.process();
         };
         reader.readAsText(file);
     }
@@ -93,7 +94,11 @@ export class Workspace {
     async asyncProcess(code) {
         var parse = Parser.Parse(code);
         console.log(parse);
-        let res = await Interpreter.Process(this._txtInput.value, parse);
+        const input = {
+            text: this._txtInput.value,
+            fileName: this._fileName ?? "[temp file]",
+        };
+        let res = await Interpreter.Process(input, parse);
         if (res?.error)
             this.ShowError(res.error);
         else if (res != null) {

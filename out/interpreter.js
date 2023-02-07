@@ -2,7 +2,8 @@ import { Lexer } from "./Lexer.js";
 import { Match, pattern, Syntax } from "./patterns.js";
 export class Interpreter {
     static async Process(input, code) {
-        let state = new InterpreterState(input);
+        let state = new InterpreterState(input.text);
+        state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         this.__gen++;
         let currGen = this.__gen;
         let lastScope = null;
@@ -111,6 +112,9 @@ export class InterpreterState {
         if (streams.length == 1)
             return streams[0];
         return Stream.mkArr(streams);
+    }
+    setGlobalVal(name, value) {
+        this.__root.set(name, value);
     }
 }
 class StackBranch {
