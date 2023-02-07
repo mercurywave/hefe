@@ -163,6 +163,15 @@ export class PatternResult<T>{
         }
         return null;
     }
+    public getSingleKey(key: string) : T{
+        for (const mtch of this.Matches) {
+            if(mtch.Key === key && mtch.Match) {
+                if(mtch.Length != 1) throw `"${key}" found too many tokens?`;
+                return this.__tokens[mtch.Begin];
+            }
+        }
+        throw `no match for "${key}"`
+    }
 }
 
 interface PatternMap<T,V>{

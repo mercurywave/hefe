@@ -28,7 +28,7 @@ export class Workspace {
         area.setAttribute("spellcheck", "false");
         area.className = className;
         if (hookEvents) {
-            area.addEventListener("input", () => setTimeout(() => this.process(), 250));
+            area.addEventListener("input", () => this.queueProcess());
             area.addEventListener("dragover", () => area.classList.add("dropping"), false);
             area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
             area.addEventListener("drop", () => area.classList.remove("dropping"), false);
@@ -41,6 +41,7 @@ export class Workspace {
                 var end = area.selectionEnd;
                 area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
                 area.selectionStart = area.selectionEnd = start + 1;
+                this.queueProcess();
             }
         });
         return area;
@@ -64,6 +65,9 @@ export class Workspace {
             this._lblFile.textContent = "Hefe - " + file.name;
         };
         reader.readAsText(file);
+    }
+    queueProcess() {
+        setTimeout(() => this.process(), 250);
     }
     process() {
         //const a = new Parser();

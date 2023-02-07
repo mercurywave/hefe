@@ -154,6 +154,16 @@ export class PatternResult {
         }
         return null;
     }
+    getSingleKey(key) {
+        for (const mtch of this.Matches) {
+            if (mtch.Key === key && mtch.Match) {
+                if (mtch.Length != 1)
+                    throw `"${key}" found too many tokens?`;
+                return this.__tokens[mtch.Begin];
+            }
+        }
+        throw `no match for "${key}"`;
+    }
 }
 export class Syntax {
     constructor(maps) {

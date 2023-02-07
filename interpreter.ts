@@ -10,7 +10,8 @@ export class Interpreter{
 
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
-            console.log("------");
+            if(step instanceof SNoop) continue;
+            console.log("------" + ln);
             if(step == null) return {output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln};
             state.line = ln;
             if(step.tabDepth + 1 > state.depth)
@@ -23,7 +24,7 @@ export class Interpreter{
                 console.log(err);
                 return {output: state.exportAsStream(), step: state.line, isComplete: false, error: err};
             }
-            await new Promise(f => setTimeout(f, 10));
+            await new Promise(f => setTimeout(f, 1));
             if(currGen != this.__gen) return null;
         }
         return {output: state.exportAsStream(), step:  state.line, isComplete: true};
@@ -250,7 +251,7 @@ export class Stream {
         if(this.array !== null) return this.array; // caution! original reference!
         throw 'cannot cast to number';
     }
-    public get isNum(): boolean { return this.isNum !== null; }
+    public get isNum(): boolean { return this.num !== null; }
     public get isText(): boolean { return this.text !== null; }
     public get isBool(): boolean { return this.bool !== null; }
     public get isArray(): boolean { return this.array !== null; }
@@ -364,18 +365,16 @@ class ParseContext{
 
 type StatementGenerator = (depth: number, result: PatternResult<string>) => IStatement;
 const _statements = new Syntax<string, StatementGenerator>()
-    .add([token("split"), parameterList(true)], (dep, res) => new SSplit(dep, res))
-    .add([token("join"), parameterList(true)], (dep, res) => new SJoin(dep, res))
-    .add([token("replace"), parameterList(false)], (dep, res) => new SReplace(dep, res))
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
-    .add([token("contains"), parameterList(false)], (dep, res) => new SContains(dep, res))
-    .add([token("piece"), parameterList(false)], (dep, res) => new SPiece(dep, res))
+    .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
 ;
 
 type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax<string, ExpressionGenerator>()
+    .add([identifier(), parameterList(false)],res => new EFunctionCall(res))
+    .add([token("stream")], res => new EStream())
     .add([identifier()],res => new EIdentifier(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
@@ -388,7 +387,7 @@ abstract class IStatement{
         this.tabDepth = depth;
     }
     public abstract process(context: ExecutionContext):Promise<void>;
-    public onOpenChildScope(context: ExecutionContext):Stream[] { throw ''; } // do these need to be parallel? probably not
+    public onOpenChildScope(context: ExecutionContext):Stream[] { throw 'statement does not support child scopes'; }
     public onCloseChildScope(context: ExecutionContext, streams: Stream[]) { }
 }
 
@@ -406,7 +405,7 @@ function token(match: string):SingleMatch<string> {
 }
 
 function identifier():SingleMatch<string> {
-    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i));
+    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i), false, "ident");
 }
 function literalNumber():SingleMatch<string> {
     return Match.testToken(t => !isNaN(+t) && isFinite(+t));
@@ -480,19 +479,15 @@ class SFilter extends IStatement{
     }
 }
 
-class SSplit extends IStatement{
+class SExpression extends IStatement{
     __exp: IExpression;
     public constructor(depth: number, parse: PatternResult<string>){
         super(depth);
-        var pars = Parser.tryParseParamList(parse);
-        if(assertParams(pars, 0, 1))
-            this.__exp = pars[0];
+        this.__exp = Parser.tryParseExpression(parse.GetSlice());
     }
     public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isText) throw "cannot split stream - expected string";
-        let delim = "\n";
-        if(this.__exp) delim = await this.__exp.EvalAsText(context);
-        context.updateStream(new Stream(null, context.stream.text.split(delim).map(s => new Stream(s))));
+        const result = await this.__exp.Eval(context);
+        context.updateStream(result);
     }
 }
 
@@ -501,86 +496,30 @@ class SNoop extends IStatement{
     public async process(context: ExecutionContext): Promise<void> {}
 }
 
-class SJoin extends IStatement{
-    __exp: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
-        var pars = Parser.tryParseParamList(parse);
-        if(assertParams(pars, 0, 1))
-            this.__exp = pars[0];
-    }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(context.stream.array === null) throw "cannot join stream - expected array";
-        let delim = "\n";
-        if(this.__exp) delim = await this.__exp.EvalAsText(context);
-        context.updateStream(Stream.mkText(context.stream.array.map(s => s.asString()).join(delim)));
-    }
-}
-
-class SReplace extends IStatement{
-    __target: IExpression;
-    __replacement: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
-        var pars = Parser.tryParseParamList(parse);
-        if(assertParams(pars, 2, 2))
-        {
-            this.__target = pars[0];
-            this.__replacement = pars[1];
-        }
-    }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isText) throw "cannot replace stream - expected string";
-        let target = (await this.__target.Eval(context)).asString();
-        let replace =(await this.__replacement.Eval(context)).asString();
-        context.updateStream(Stream.mkText(context.stream.text.replaceAll(target, replace)));
-    }
-}
-
-class SContains extends IStatement{
-    __target: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
-        var pars = Parser.tryParseParamList(parse);
-        if(assertParams(pars, 1, 1))
-            this.__target = pars[0];
-    }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isText) throw "cannot check contains stream - expected string";
-        let target = await this.__target.Eval(context);
-        context.updateStream(Stream.mkBool(context.stream.text.includes(target.asString())));
-    }
-}
-
-class SPiece extends IStatement{
-    __delim: IExpression;
-    __idx: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
-        var pars = Parser.tryParseParamList(parse);
-        if(assertParams(pars, 2, 2))
-        {
-            this.__delim = pars[0];
-            this.__idx = pars[1];
-        }
-    }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isText) throw "cannot replace stream - expected string";
-        const orig = context.stream.asString();
-        const target = await (await this.__delim.Eval(context)).asString();
-        const idx = await (await this.__idx.Eval(context)).asNum();
-        const split = orig.split(target);
-        context.updateStream(Stream.mkText(split[idx - 1]));
-    }
-}
-
 
 class EIdentifier extends IExpression{
+    name: string;
     public constructor(parse: PatternResult<string>){
+        super();
+        this.name = parse.getSingleKey("ident");
+    }
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        let func = _builtInFuncs[this.name];
+        if(func != null){
+            return await EFunctionCall.runFunc(this.name, [], context, context.stream);
+        }
+        let obj = context.get(this.name);
+        if(obj == null) throw `unknown variable "${this.name}"`;
+        return obj;
+    }
+}
+
+class EStream extends IExpression{
+    public constructor(){
         super();
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
-        throw '';
+        return context.stream;
     }
 }
 
@@ -686,6 +625,80 @@ class EOperator extends IExpression{
             default: throw 'operator does not have priority?';
         }
     }
+}
+
+class EFunctionCall extends IExpression{
+    name: string;
+    params: IExpression[];
+    public constructor(parse: PatternResult<string>){
+        super();
+        this.name = parse.getSingleKey("ident");
+        this.params = Parser.tryParseParamList(parse);
+    }
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        return EFunctionCall.runFunc(this.name, this.params, context, context.stream);
+    }
+    public static async runFunc(name: string, params: IExpression[], context: ExecutionContext, stream: Stream): Promise<Stream>{
+        let func = _builtInFuncs[name];
+        if(func == null) throw 'could not find function ' + this.name;
+        if(params.length < func.minP || params.length > func.maxP)
+            throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
+        return await func.action(context, stream, params);
+    }
+}
+
+const _builtInFuncs: Record<string, IFunction> = {};
+
+regFunc("split", 0, 1, async (c, stream, pars) =>{
+    if(!stream.isText) throw "cannot split stream - expected string";
+    let delim = "\n";
+    if(pars.length > 0)
+        delim = await pars[0].EvalAsText(c);
+    return Stream.mkArr(stream.text.split(delim).map(s => new Stream(s)));
+});
+
+regFunc("join", 0, 1, async (c, stream, pars) =>{
+    if(!stream.isArray) throw "cannot join stream - expected array";
+    let delim = "\n";
+    if(pars.length > 0)
+        delim = await pars[0].EvalAsText(c);
+    return Stream.mkText(stream.array.map(s => s.asString()).join(delim));
+});
+
+regFunc("replace", 2, 2, async (c, stream, pars) =>{
+    if(!stream.isText) throw "cannot replace in stream - expected string";
+    const target = await pars[0].EvalAsText(c);
+    const replace = await pars[1].EvalAsText(c);
+    return Stream.mkText(stream.text.replaceAll(target, replace));
+});
+
+regFunc("piece", 2, 2, async (c, stream, pars) =>{
+    if(!stream.isText) throw "cannot piece stream - expected string";
+    const delim = await pars[0].EvalAsText(c);
+    const idx = (await pars[1].Eval(c)).asNum();
+    const split = stream.asString().split(delim);
+    return Stream.mkText(split[idx - 1]);
+});
+
+regFunc("contains", 1, 1, async (c, stream, pars) =>{
+    if(!stream.isText) throw "cannot check stream for substring contains - expected string";
+    const target = await pars[0].EvalAsText(c);
+    return Stream.mkBool(stream.text.includes(target));
+});
+
+function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {
+    _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
+}
+
+function mkFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>):IFunction {
+    return {name, minP, maxP, action};
+}
+
+interface IFunction{
+    name: string;
+    minP: number;
+    maxP: number;
+    action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>;
 }
 
 function arrCount<T>(arr: T[], elem:T): number
