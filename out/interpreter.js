@@ -5,6 +5,7 @@ export class Interpreter {
         let state = new InterpreterState(input);
         this.__gen++;
         let currGen = this.__gen;
+        let lastScope = null;
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
             if (step instanceof SNoop)
@@ -13,8 +14,8 @@ export class Interpreter {
             if (step == null)
                 return { output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln };
             state.line = ln;
-            if (step.tabDepth + 1 > state.depth)
-                state.pushStack(code[ln - 1]);
+            if (step.tabDepth + 1 > state.depth && lastScope)
+                state.pushStack(lastScope);
             while (state.depth > step.tabDepth + 1)
                 state.popStack();
             try {
@@ -24,6 +25,7 @@ export class Interpreter {
                 console.log(err);
                 return { output: state.exportAsStream(), step: state.line, isComplete: false, error: err };
             }
+            lastScope = step;
             await new Promise(f => setTimeout(f, 1));
             if (currGen != this.__gen)
                 return null;

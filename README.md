@@ -10,11 +10,11 @@ b << Sum
     Piece(",", 3) >> ToInt
 Filter
     Split(",") >> Idx(1) >> Contains("foo")
-Join("\n")
+Join // assumes \n to join
 
-a << stream
-b << a:replace(",","_")
-stream:replace("|", "\n")
+a << stream // stream is a special variable
+b << a:replace(",","_") // run a function on a specific variable
+replace("|", "\n") // or run it on the stream
 
 fn Splitter("|")
     SplitEscaped("|", "\|")
