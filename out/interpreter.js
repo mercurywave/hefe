@@ -731,6 +731,15 @@ regFunc("slice", 1, 2, async (c, stream, pars) => {
         end = (await pars[1].Eval(c)).asNum();
     return Stream.mkText(stream.asString().slice(start, end));
 });
+regFunc("iif", 2, 3, async (c, stream, pars) => {
+    const test = (await pars[0].Eval(c)).asBool();
+    if (test) {
+        return await pars[1].Eval(c);
+    }
+    if (pars.length > 2)
+        return await pars[2].Eval(c);
+    return stream;
+});
 function regFunc(name, minP, maxP, action) {
     _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
 }
