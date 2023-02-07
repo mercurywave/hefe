@@ -13,7 +13,7 @@ export var Match;
     Match.anyOf = anyOf;
     function anything(optional) {
         // always includes the rest of the stream. does not stop for nothing
-        return matchWhile(t => true, optional);
+        return matchWhile(t => true, optional, "any");
     }
     Match.anything = anything;
     function testToken(match, optional, key) {

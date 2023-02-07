@@ -13,7 +13,7 @@ export module Match{
     }
     export function anything<T>(optional?: boolean): SingleMatch<T>{
         // always includes the rest of the stream. does not stop for nothing
-        return matchWhile(t => true, optional);
+        return matchWhile(t => true, optional, "any");
     }
     export function testToken<T>(match: (T) => boolean, optional?: boolean, key?: string):SingleMatch<T> {
         return {

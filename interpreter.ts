@@ -272,17 +272,21 @@ export class Parser{
     
     public static ParseLine(code: string, context: ParseContext): IStatement{
         const tokens = Lexer.Tokenize(code);
-        let states: IStatement[] = [];
-        let idx = 0;
         let depth = context.getDepth(tokens.TabDepth);
         if(tokens.Tokens.length == 0) return new SNoop(tokens.TabDepth);
-        while(idx < tokens.Tokens.length){
-            let match = _statements.firstPartialMatch(tokens.Tokens, idx);
+        return this.ParseStatements(tokens.Tokens, depth);
+    }
+
+    public static ParseStatements(tokens:string[], depth: number): IStatement{
+        let idx = 0;
+        let states: IStatement[] = [];
+        while(idx < tokens.length){
+            let match = _statements.firstPartialMatch(tokens, idx);
             if(match == null) return null;
             states.push(match.output(depth, match.result));
             idx = match.result.endIndex + 1;
-            if(idx < tokens.Tokens.length && tokens[idx] == ">>") idx++;
-            else if(idx < tokens.Tokens.length) return null;
+            if(idx < tokens.length && tokens[idx] == ">>") idx++;
+            else if(idx < tokens.length) return null;
         }
         let result: IStatement;
         if(states.length == 0) result = null;
@@ -367,6 +371,7 @@ type StatementGenerator = (depth: number, result: PatternResult<string>) => ISta
 const _statements = new Syntax<string, StatementGenerator>()
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
+    .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
 ;
 
@@ -477,6 +482,20 @@ class SFilter extends IStatement{
         const prev = context.stream.asArray();
         const filtered = prev.filter((v,i) => streams[i].asBool());
         context.updateStream(Stream.mkArr(filtered));
+    }
+}
+
+class SStoreLocal extends IStatement{
+    __ident: string;
+    __exp: IExpression;
+    public constructor(depth: number, parse: PatternResult<string>){
+        super(depth);
+        this.__ident = parse.getSingleKey("ident");
+        this.__exp = Parser.tryParseExpression(parse.tryGetByKey("any"));
+    }
+    public async process(context: ExecutionContext): Promise<void> {
+        const result = await this.__exp.Eval(context);
+        context.saveVar(this.__ident, result);
     }
 }
 

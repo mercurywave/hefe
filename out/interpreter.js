@@ -264,20 +264,23 @@ export class Parser {
     }
     static ParseLine(code, context) {
         const tokens = Lexer.Tokenize(code);
-        let states = [];
-        let idx = 0;
         let depth = context.getDepth(tokens.TabDepth);
         if (tokens.Tokens.length == 0)
             return new SNoop(tokens.TabDepth);
-        while (idx < tokens.Tokens.length) {
-            let match = _statements.firstPartialMatch(tokens.Tokens, idx);
+        return this.ParseStatements(tokens.Tokens, depth);
+    }
+    static ParseStatements(tokens, depth) {
+        let idx = 0;
+        let states = [];
+        while (idx < tokens.length) {
+            let match = _statements.firstPartialMatch(tokens, idx);
             if (match == null)
                 return null;
             states.push(match.output(depth, match.result));
             idx = match.result.endIndex + 1;
-            if (idx < tokens.Tokens.length && tokens[idx] == ">>")
+            if (idx < tokens.length && tokens[idx] == ">>")
                 idx++;
-            else if (idx < tokens.Tokens.length)
+            else if (idx < tokens.length)
                 return null;
         }
         let result;
@@ -372,6 +375,7 @@ class ParseContext {
 const _statements = new Syntax()
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
+    .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
@@ -468,6 +472,17 @@ class SFilter extends IStatement {
         const prev = context.stream.asArray();
         const filtered = prev.filter((v, i) => streams[i].asBool());
         context.updateStream(Stream.mkArr(filtered));
+    }
+}
+class SStoreLocal extends IStatement {
+    constructor(depth, parse) {
+        super(depth);
+        this.__ident = parse.getSingleKey("ident");
+        this.__exp = Parser.tryParseExpression(parse.tryGetByKey("any"));
+    }
+    async process(context) {
+        const result = await this.__exp.Eval(context);
+        context.saveVar(this.__ident, result);
     }
 }
 class SExpression extends IStatement {
