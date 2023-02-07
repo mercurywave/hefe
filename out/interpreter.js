@@ -66,7 +66,7 @@ export class InterpreterState {
     constructor(stream) {
         this.__scopes = [null];
         this.line = -1;
-        this.__root = new StackBranch(Stream.mkText(stream));
+        this.__root = new StackBranch(Stream.mkText(stream), 0);
     }
     get depth() { return this.__scopes.length; }
     foreachExecution(action, depth) {
@@ -89,7 +89,7 @@ export class InterpreterState {
         this.foreachChain((chain, leaf) => {
             const context = new ExecutionContext(chain, this);
             const streams = state.onOpenChildScope(context);
-            leaf.branches = streams.map(s => new StackBranch(s));
+            leaf.branches = streams.map((s, i) => new StackBranch(s, i));
         });
         this.__scopes.push(state); // run after because this affects depth calculation
     }
@@ -114,9 +114,10 @@ export class InterpreterState {
     }
 }
 class StackBranch {
-    constructor(stream) {
+    constructor(stream, index) {
         this.variables = {};
         this.__stream = stream;
+        this.index = index;
     }
     get(name) {
         return this.variables[name];
@@ -383,6 +384,7 @@ const _statements = new Syntax()
 const _expressionComps = new Syntax()
     .add([identifier(), parameterList(false)], res => new EFunctionCall(res))
     .add([token("stream")], res => new EStream())
+    .add([token("index")], res => new EIndex())
     .add([identifier()], res => new EIdentifier(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
@@ -524,12 +526,12 @@ class EIdentifier extends IExpression {
     }
 }
 class EStream extends IExpression {
-    constructor() {
-        super();
-    }
-    async Eval(context) {
-        return context.stream;
-    }
+    constructor() { super(); }
+    async Eval(context) { return context.stream; }
+}
+class EIndex extends IExpression {
+    constructor() { super(); }
+    async Eval(context) { return Stream.mkNum(context.leafNode.index); }
 }
 class ENumericLiteral extends IExpression {
     constructor(parse) {

@@ -80,7 +80,7 @@ export class InterpreterState{
     public line: number = -1;
 
     public constructor(stream: string){
-        this.__root = new StackBranch(Stream.mkText(stream));
+        this.__root = new StackBranch(Stream.mkText(stream), 0);
     }
 
     public get depth(): number {return this.__scopes.length;}
@@ -106,7 +106,7 @@ export class InterpreterState{
         this.foreachChain((chain, leaf) => {
             const context = new ExecutionContext(chain, this);
             const streams = state.onOpenChildScope(context);
-            leaf.branches = streams.map(s => new StackBranch(s));
+            leaf.branches = streams.map((s, i) => new StackBranch(s, i));
         });
         this.__scopes.push(state); // run after because this affects depth calculation
     }
@@ -135,8 +135,10 @@ class StackBranch{
     __stream: Stream;
     __branches: StackBranch[];
     variables: Record<string, Stream> = {};
-    public constructor(stream: Stream){
+    index: number;
+    public constructor(stream: Stream, index: number){
         this.__stream = stream;
+        this.index = index;
     }
     public get(name: string): Stream | null{
         return this.variables[name];
@@ -382,6 +384,7 @@ type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
 const _expressionComps = new Syntax<string, ExpressionGenerator>()
     .add([identifier(), parameterList(false)],res => new EFunctionCall(res))
     .add([token("stream")], res => new EStream())
+    .add([token("index")], res => new EIndex())
     .add([identifier()],res => new EIdentifier(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
@@ -543,12 +546,12 @@ class EIdentifier extends IExpression{
 }
 
 class EStream extends IExpression{
-    public constructor(){
-        super();
-    }
-    public async Eval(context: ExecutionContext): Promise<Stream> {
-        return context.stream;
-    }
+    public constructor(){ super(); }
+    public async Eval(context: ExecutionContext): Promise<Stream> { return context.stream; }
+}
+class EIndex extends IExpression{
+    public constructor(){ super(); }
+    public async Eval(context: ExecutionContext): Promise<Stream> { return Stream.mkNum(context.leafNode.index); }
 }
 
 class ENumericLiteral extends IExpression{
