@@ -18,6 +18,7 @@ export class Interpreter{
         for (let ln = 0; ln < code.length; ln++) {
             const step = code[ln];
             if(step instanceof SNoop) continue;
+            if(step instanceof SExit) break;
             console.log("------" + ln);
             if(step == null) return {output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln};
             state.line = ln;
@@ -398,6 +399,7 @@ type StatementGenerator = (depth: number, result: PatternResult<string>) => ISta
 const _statements = new Syntax<string, StatementGenerator>()
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
+    .add([token("exit")], (dep, res) => new SExit(dep))
     .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
 ;
@@ -484,6 +486,11 @@ class SMultiStatement extends IStatement{
             await substate.process(context);
         }
     }
+}
+
+class SExit extends IStatement{
+    public constructor(depth: number){super(depth); }
+    public override async process(context: ExecutionContext): Promise<void> {}
 }
 
 class SMap extends IStatement{
