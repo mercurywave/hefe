@@ -719,7 +719,7 @@ class EFunctionCall extends IExpression{
     }
     public static async runFunc(name: string, params: IExpression[], context: ExecutionContext, stream: Stream): Promise<Stream>{
         let func = _builtInFuncs[name];
-        if(func == null) throw 'could not find function ' + this.name;
+        if(func == null) throw 'could not find function ' + name;
         if(params.length < func.minP || params.length > func.maxP)
             throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
         return await func.action(context, stream, params);
@@ -745,6 +745,12 @@ regFunc("join", 0, 1, async (c, stream, pars) =>{
     if(pars.length > 0)
         delim = await pars[0].EvalAsText(c);
     return Stream.mkText(stream.array.map(s => s.asString()).join(delim));
+});
+
+regFunc("concat", 1, 1, async (c, stream, pars) =>{
+    if(!stream.isArray) throw "cannot concat stream - expected array";
+    let tail = (await pars[0].Eval(c)).asArray();
+    return Stream.mkArr(stream.array.concat(tail));
 });
 
 regFunc("replace", 2, 2, async (c, stream, pars) =>{
