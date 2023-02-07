@@ -232,6 +232,12 @@ export class Stream {
         switch (op) {
             case "=": return new Stream(null, null, null, Stream.areEqual(this,other));
             case "!=": return new Stream(null, null, null, !Stream.areEqual(this,other));
+            case "|": return Stream.mkBool(this.asBool() || other.asBool());
+            case "&": return Stream.mkBool(this.asBool() && other.asBool());
+            case "<": return Stream.mkBool(this.asNum() < other.asNum());
+            case ">": return Stream.mkBool(this.asNum() > other.asNum());
+            case "<=": return Stream.mkBool(this.asNum() <= other.asNum());
+            case ">=": return Stream.mkBool(this.asNum() >= other.asNum());
             case "+":
                 if(!other.canCastTo(this.type)) throw 'could not cast right side for +';
                 switch (this.type) {
