@@ -322,7 +322,7 @@ export class Parser {
     static tryParseParamList(parse, key) {
         let tokes = parse?.tryGetByKey(key ?? "params");
         if (tokes == null)
-            return null;
+            return [];
         return this.tryParseExpressions(tokes.slice(1, -1));
     }
     // null is valid, but a buggy expresison will throw
@@ -407,6 +407,7 @@ const _statements = new Syntax()
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
+    .add([identifier(), token("("), token(")")], res => new EFunctionCall(res))
     .add([identifier(), parameterList(false)], res => new EFunctionCall(res))
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
@@ -448,7 +449,7 @@ function literalNumber() {
 function literalString() {
     return Match.testToken(t => t[0] === "\""); // shouldn't have lexed anything else with a leading "
 }
-function expressionLike(stop) {
+function expressionLike(stop, optional) {
     return Match.testSequence(tokes => {
         const trail = tokes[token.length - 1];
         if (stop && trail === stop)
@@ -460,10 +461,11 @@ function expressionLike(stop) {
         if (lPars > rPars)
             return null;
         return true;
-    }, false, "exp");
+    }, optional, "exp");
 }
 function parameterList(optional) {
-    return Match.testPattern(pattern(token("("), expressionLike(), token(")")), optional, "params");
+    return Match.testPattern(pattern(token("("), expressionLike(null, true), // this doesn't seem to actually be optional?
+    token(")")), optional, "params");
 }
 class SMultiStatement extends IStatement {
     constructor(depth, list) {
@@ -757,6 +759,33 @@ regFunc("contains", 1, 1, async (c, stream, pars) => {
     const target = await pars[0].EvalAsText(c);
     return Stream.mkBool(stream.text.includes(target));
 });
+regFunc("startsWith", 1, 1, async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "cannot check stream for startsWith - expected string";
+    const target = await pars[0].EvalAsText(c);
+    return Stream.mkBool(stream.text.startsWith(target));
+});
+regFunc("endsWith", 1, 1, async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "cannot check stream for endsWith - expected string";
+    const target = await pars[0].EvalAsText(c);
+    return Stream.mkBool(stream.text.endsWith(target));
+});
+regFunc("trim", 0, 0, async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "cannot trim stream - expected string";
+    return Stream.mkText(stream.text.trim());
+});
+regFunc("trimStart", 0, 0, async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "cannot trimStart stream - expected string";
+    return Stream.mkText(stream.text.trimStart());
+});
+regFunc("trimEnd", 0, 0, async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "cannot trimEnd stream - expected string";
+    return Stream.mkText(stream.text.trimEnd());
+});
 regFunc("modulo", 1, 1, async (c, stream, pars) => {
     if (!stream.isNum)
         throw "cannot modulo stream - expected number";
@@ -764,13 +793,15 @@ regFunc("modulo", 1, 1, async (c, stream, pars) => {
     return Stream.mkNum(((stream.num % m) + m) % m);
 });
 regFunc("slice", 1, 2, async (c, stream, pars) => {
-    if (!stream.isText)
-        throw "cannot slice stream - expected string"; // TODO: apply to arrays
+    if (!stream.isText && !stream.isArray)
+        throw "cannot slice stream - expected string or array";
     const start = (await pars[0].Eval(c)).asNum();
     let end = null;
     if (pars.length > 1)
         end = (await pars[1].Eval(c)).asNum();
-    return Stream.mkText(stream.asString().slice(start, end));
+    if (stream.isText)
+        return Stream.mkText(stream.asString().slice(start, end));
+    return Stream.mkArr(stream.asArray().slice(start, end));
 });
 regFunc("iif", 2, 3, async (c, stream, pars) => {
     const test = (await pars[0].Eval(c)).asBool();
@@ -788,6 +819,8 @@ function mkFunc(name, minP, maxP, action) {
     return { name, minP, maxP, action };
 }
 function arrCount(arr, elem) {
+    if (arr.length == 0)
+        return 0;
     return arr.map(curr => curr == elem ? 1 : 0).reduce((sum, curr) => sum + curr);
 }
 function assertParams(pars, min, max) {
