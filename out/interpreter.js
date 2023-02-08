@@ -239,7 +239,7 @@ export class Stream {
     }
     runUnary(op) {
         switch (op) {
-            case "!": return Stream.mkBool(this.asBool());
+            case "!": return Stream.mkBool(!this.asBool());
             case "-": return Stream.mkNum(-this.asNum());
             default: throw `unary not implemented ${op}`;
         }
