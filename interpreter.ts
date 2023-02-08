@@ -247,6 +247,9 @@ export class Stream {
                     case eStreamType.Array: return Stream.mkArr([].concat(this.array, other.asArray()));
                     default: throw 'types not compatible for +';
                 }
+            case "-": return Stream.mkNum(this.asNum() - other.asNum());
+            case "*": return Stream.mkNum(this.asNum() * other.asNum());
+            case "/": return Stream.mkNum(this.asNum() / other.asNum());
             default: throw 'operator ' + op + ' is not implemented';
         }
     }
@@ -668,8 +671,7 @@ class EOperator extends IExpression{
             stack[idx] = newOp;
             stack[idx + 1] = newOp;
         }
-        // all the expressions in the stack should now point to the same operation
-        return stack[0];
+        return stack[opIdx[opIdx.length - 1]];
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
         const a = await this.__left.Eval(context);
