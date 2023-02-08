@@ -628,12 +628,16 @@ class EOperator extends IExpression {
                 return -1;
             throw 'unreachable';
         });
-        for (const idx of opIdx) {
+        for (let forIdx = 0; forIdx < opIdx.length; forIdx++) {
+            const idx = opIdx[forIdx];
             const newOp = new EOperator(stack[idx], ops[idx], stack[idx + 1]);
             stack[idx] = newOp;
-            stack[idx + 1] = newOp;
+            stack.splice(idx + 1, 1);
+            ops.splice(idx, 1);
+            opIdx = opIdx.map(i => i > idx ? i - 1 : i);
         }
-        return stack[opIdx[opIdx.length - 1]];
+        // should only be 1 element left
+        return stack[0];
     }
     async Eval(context) {
         const a = await this.__left.Eval(context);
