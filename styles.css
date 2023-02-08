@@ -2,6 +2,7 @@ body {
     margin: 0;
     background-color: #2E2F43;
     color: #FFF;
+    margin-left: 5px;
 }
 .toolbar{
     position: fixed;
@@ -35,5 +36,10 @@ textarea{
     left: 50%;
 }
 .txtEd{ 
+    top: calc(60% + 1.5em);
+}
+.lblError{
+    position: fixed;
     top: 60%;
+    color: orange;
 }

@@ -6,6 +6,7 @@ export class Workspace {
     private _paneMain : HTMLElement;
     private _paneToolbar : HTMLElement;
     private _lblFile : HTMLHeadingElement;
+    private _lblError : HTMLHeadingElement;
     private _btCopy : HTMLInputElement;
     private _txtInput : HTMLTextAreaElement;
     private _txtOutput : HTMLTextAreaElement;
@@ -29,6 +30,8 @@ export class Workspace {
 
         this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
+        this._lblError = pane.appendChild(document.createElement("div"))
+        this._lblError.className = "lblError";
         this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
 
         let prevCode = localStorage.getItem("jsCode");
@@ -99,16 +102,6 @@ export class Workspace {
             const code = this._txtEditor.value;
             localStorage.setItem("jsCode", code);
             
-            //const lines = code.split("\n");
-            // const lexed = lines.map(c => {
-            //     try
-            //     {
-            //         let lex = Lexer.Tokenize(c);
-            //         return lex.Tokens;
-            //         //return lex.Tokens.toString();
-            //     } catch(err){return err;}
-            // });
-            // this._txtOutput.value = lexed.join("\n").toString();
             this.asyncProcess(code);
         }
         catch(err){
@@ -116,19 +109,22 @@ export class Workspace {
         }
     }
     public async asyncProcess(code: string){
-        var parse = Parser.Parse(code);
-        console.log(parse);
-        const input = {
-            text: this._txtInput.value,
-            fileName: this._fileName ?? "[temp file]",
-        }
-        let res = await Interpreter.Process(input, parse);
-        if(res?.error)
-            this.ShowError(res.error);
-        else if(res != null)
-        {
-            this._txtOutput.value = res.output.toDisplayText();
-        }
+        try{
+            var parse = Parser.Parse(code);
+            console.log(parse);
+            const input = {
+                text: this._txtInput.value,
+                fileName: this._fileName ?? "[temp file]",
+            }
+            let res = await Interpreter.Process(input, parse);
+            if(res?.error)
+                this.ShowError(res.error);
+            else if(res != null)
+            {
+                this._txtOutput.value = res.output.toDisplayText();
+                this._lblError.textContent = "";
+            }
+        } catch(err){this.ShowError(err);}
     }
 
     private copyToClipboard(textarea: HTMLTextAreaElement){
@@ -142,7 +138,7 @@ export class Workspace {
     private ShowError(err){
         console.log("error:");
         console.log(err);
-        this._txtOutput.value = "" + err;
+        this._lblError.textContent = err;
     }
 }
 
