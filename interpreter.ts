@@ -25,7 +25,7 @@ export class Interpreter{
                 state.pushStack(lastScope);
             while(state.depth > step.tabDepth + 1)
                 state.popStack();
-            if(step instanceof SExit) break;
+            if(step instanceof SExit) return {output: state.exportAsStream(), step:  state.line, isComplete: true};
             try{
                 await Interpreter.parallelProcess(state, 0, step);
             } catch(err){
@@ -36,6 +36,8 @@ export class Interpreter{
             await new Promise(f => setTimeout(f, 1));
             if(currGen != this.__gen) return null;
         }
+        while(state.depth > 1)
+            state.popStack();
         return {output: state.exportAsStream(), step:  state.line, isComplete: true};
     }
     
@@ -413,6 +415,8 @@ const _expressionComps = new Syntax<string, ExpressionGenerator>()
     .add([identifier(), parameterList(false)],res => new EFunctionCall(res))
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
+    .add([token("true")], res => new ETrueLiteral())
+    .add([token("false")], res => new EFalseLiteral())
     .add([identifier()],res => new EIdentifier(res))
     .add([unary(), expressionLike()], res => new EUnary(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
@@ -516,7 +520,7 @@ class SFilter extends IStatement{
         super(depth);
     }
     public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray) throw 'map function expected to process an array';
+        if(!context.stream.isArray) throw 'filter function expected to process an array';
     }
     public onOpenChildScope(context: ExecutionContext):Stream[]{
         return context.stream.asArray().slice();
@@ -590,6 +594,16 @@ class EStream extends IExpression{
 class EIndex extends IExpression{
     public constructor(){ super(); }
     public async Eval(context: ExecutionContext): Promise<Stream> { return Stream.mkNum(context.leafNode.index); }
+}
+
+class ETrueLiteral extends IExpression{
+    public constructor(){ super(); }
+    public async Eval(context: ExecutionContext): Promise<Stream> { return Stream.mkBool(true); }
+}
+
+class EFalseLiteral extends IExpression{
+    public constructor(){ super(); }
+    public async Eval(context: ExecutionContext): Promise<Stream> { return Stream.mkBool(false); }
 }
 
 class ENumericLiteral extends IExpression{

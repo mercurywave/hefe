@@ -20,7 +20,7 @@ export class Interpreter {
             while (state.depth > step.tabDepth + 1)
                 state.popStack();
             if (step instanceof SExit)
-                break;
+                return { output: state.exportAsStream(), step: state.line, isComplete: true };
             try {
                 await Interpreter.parallelProcess(state, 0, step);
             }
@@ -33,6 +33,8 @@ export class Interpreter {
             if (currGen != this.__gen)
                 return null;
         }
+        while (state.depth > 1)
+            state.popStack();
         return { output: state.exportAsStream(), step: state.line, isComplete: true };
     }
     static async parallelProcess(state, depth, child) {
@@ -408,6 +410,8 @@ const _expressionComps = new Syntax()
     .add([identifier(), parameterList(false)], res => new EFunctionCall(res))
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
+    .add([token("true")], res => new ETrueLiteral())
+    .add([token("false")], res => new EFalseLiteral())
     .add([identifier()], res => new EIdentifier(res))
     .add([unary(), expressionLike()], res => new EUnary(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
@@ -498,7 +502,7 @@ class SFilter extends IStatement {
     }
     async process(context) {
         if (!context.stream.isArray)
-            throw 'map function expected to process an array';
+            throw 'filter function expected to process an array';
     }
     onOpenChildScope(context) {
         return context.stream.asArray().slice();
@@ -563,6 +567,14 @@ class EStream extends IExpression {
 class EIndex extends IExpression {
     constructor() { super(); }
     async Eval(context) { return Stream.mkNum(context.leafNode.index); }
+}
+class ETrueLiteral extends IExpression {
+    constructor() { super(); }
+    async Eval(context) { return Stream.mkBool(true); }
+}
+class EFalseLiteral extends IExpression {
+    constructor() { super(); }
+    async Eval(context) { return Stream.mkBool(false); }
 }
 class ENumericLiteral extends IExpression {
     constructor(parse) {
