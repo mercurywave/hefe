@@ -1,4 +1,6 @@
+import { CodeInput, Template } from "./code-input/code-input.js";
 import { Interpreter, Parser } from "./interpreter.js";
+import { eTokenType, Lexer } from "./Lexer.js";
 export class Workspace {
     constructor(pane) {
         this._paneMain = pane;
@@ -14,7 +16,8 @@ export class Workspace {
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._lblError = pane.appendChild(document.createElement("div"));
         this._lblError.className = "lblError";
-        this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
+        //this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
+        this._txtEditor = this.makeEditor(pane);
         let prevCode = localStorage.getItem("jsCode");
         if (prevCode == null || prevCode == "") {
             prevCode = 'let a = all;\nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");';
@@ -25,10 +28,39 @@ export class Workspace {
             this.process();
         }, 0);
     }
+    makeEditor(pane) {
+        let area = document.createElement("code-input");
+        //area.setAttribute("lang", "");
+        area.classList.add("txt", "ce");
+        area.addEventListener("input", () => this.queueProcess());
+        area.addEventListener("dragover", () => area.classList.add("dropping"), false);
+        area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", event => this.onFileDropped(event, area));
+        console.log(area);
+        CodeInput.registerTemplate("def", new HefeTemplate());
+        let wrapperIn = pane.appendChild(document.createElement("div"));
+        wrapperIn.className = "txtEd";
+        wrapperIn.appendChild(area);
+        let wrapper = pane.appendChild(document.createElement("div"));
+        wrapper.className = "txtEdBox txtPanel";
+        wrapper.appendChild(wrapperIn);
+        area.addEventListener("keydown", e => {
+            if (e.key == 'Tab') {
+                e.preventDefault();
+                var start = area.selectionStart;
+                var end = area.selectionEnd;
+                area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
+                area.selectionStart = area.selectionEnd = start + 1;
+                this.queueProcess();
+            }
+        });
+        return area;
+    }
     makeTextArea(className, hookEvents) {
         let area = document.createElement("textarea");
         area.setAttribute("spellcheck", "false");
-        area.className = className;
+        area.classList.add(className, "txtPanel", "txt");
         if (hookEvents) {
             area.addEventListener("input", () => this.queueProcess());
             area.addEventListener("dragover", () => area.classList.add("dropping"), false);
@@ -113,6 +145,38 @@ export class Workspace {
         console.log("error:");
         console.log(err);
         this._lblError.textContent = err;
+    }
+}
+class HefeTemplate extends Template {
+    constructor() {
+        super(true, true, true, []);
+    }
+    highlight(result_element, code_input) {
+        let html_result = [];
+        let lines = code_input.value.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+            if (i > 0)
+                html_result.push("</br>");
+            let code = lines[i];
+            let lex = Lexer.Tokenize(code);
+            for (let pos = 0; pos < code.length; pos++) {
+                const symb = code[pos];
+                const type = Lexer.getTokenAt(lex.details, pos);
+                const color = HefeTemplate.getColor(type);
+                html_result.push(`<span style="color: ${color}">${code_input.escape_html(symb)}</span>`);
+            }
+        }
+        result_element.innerHTML = html_result.join("");
+    }
+    static getColor(type) {
+        switch (type) {
+            case eTokenType.comment: return "#57A64A";
+            case eTokenType.identifier: return "#DCDCDC";
+            case eTokenType.literalNumber: return "#B5CEA8";
+            case eTokenType.literalString: return "#D69D85";
+            case eTokenType.symbol: return "#DCDCDC";
+            default: return "";
+        }
     }
 }
 let _instance;

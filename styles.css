@@ -14,18 +14,23 @@ body {
     background-color: #646281;
     transition: background-color 200ms linear;
 }
-textarea{
-    resize: none;
-    position: fixed;
-    left:0; top: 3em; right:0; bottom:0;
-    padding: 10px;
-    margin: 5px;
+.txt{
     background-color: #3E3D5F;
     color: #FFF;
     white-space: pre;
     overflow-wrap: normal;
     overflow-x: auto;
     tab-size: 4;
+    resize: none;
+}
+.txtPanel{
+    position: fixed;
+    left:0; top: 3em; right:0; bottom:0;
+    padding: 10px;
+    margin: 5px;
+}
+.ed{
+    margin: 0;
 }
 .txtIn{
     bottom: 40%;
@@ -35,7 +40,11 @@ textarea{
     bottom: 40%;
     left: 50%;
 }
-.txtEd{ 
+.txtEd{
+    position: relative;
+    margin: 0;
+}
+.txtEdBox{
     top: calc(60% + 1.5em);
 }
 .lblError{

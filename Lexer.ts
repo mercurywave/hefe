@@ -8,28 +8,53 @@ export class Lexer{
         var arr = trim.split("");
         let idx = 0;
         let Tokens : string[] = [];
+        let details:  TokeDetails[] = [];
         while(idx < arr.length){
             var result = _symbols.firstPartialMatch(arr, idx);
             if(result == null) {throw "could not lex from: " + arr.slice(idx).join("");}
             var len = result.result.length;
-            if(result.output){ // ignoring spaces/comments, etc.
-                Tokens.push(arr.slice(idx, idx + len).join(""));
+            const token = arr.slice(idx, idx + len).join("");
+            if(result.output != eTokenType.comment && result.output != eTokenType.whiteSpace){ // ignoring spaces/comments, etc.
+                Tokens.push(token);
             }
+            details.push({token, type: result.output, start: idx + TabDepth });
             idx += len;
         }
-        return {TabDepth, Tokens, original: code};
+        return {TabDepth, Tokens, original: code, details};
+    }
+    public static getTokenAt(tokes: TokeDetails[], index: number){
+        for (const t of tokes) {
+            if(index >= t.start && index < t.start + t.token.length)
+                return t.type;
+        }
+        return eTokenType.whiteSpace;
     }
 }
 
-const _symbols = new Syntax<string, boolean>()
-    .add([symbols(" \t")], false)
-    .add([tokens(":=",">>","!=", "<=", ">=","<<")], true)
-    .add([tokens("//"), Match.anything(true)], false)
-    .add([symbols("+-=/*!;\\(),.:<>&|")], true)
-    .add([number()], true)
-    .add([word()], true)
-    .add([tokens("\"\"")], true) // easier to special case an empty string
-    .add(literalString(), true)
+export interface LexLine{
+    TabDepth: number;
+    Tokens: string[];
+    original: string;
+    details: TokeDetails[];
+}
+export interface TokeDetails{
+    token: string;
+    type: eTokenType;
+    start: number;
+}
+export enum eTokenType{
+    symbol, literalString, literalNumber, comment, identifier, whiteSpace
+}
+
+const _symbols = new Syntax<string, eTokenType>()
+    .add([whitespace()], eTokenType.whiteSpace)
+    .add([tokens(":=",">>","!=", "<=", ">=","<<")], eTokenType.symbol)
+    .add([tokens("//"), Match.anything(true)], eTokenType.comment)
+    .add([symbols("+-=/*!;\\(),.:<>&|")], eTokenType.symbol)
+    .add([number()], eTokenType.literalNumber)
+    .add([word()], eTokenType.identifier)
+    .add([tokens("\"\"")], eTokenType.literalString) // easier to special case an empty string
+    .add(literalString(), eTokenType.literalString)
 ;
 
 function tokens(...matches: string[]):SingleMatch<string> {
@@ -38,6 +63,10 @@ function tokens(...matches: string[]):SingleMatch<string> {
 
 function symbols(symbols: string):SingleMatch<string> {
     return Match.anyOf(symbols.split(""));
+}
+
+function whitespace(): SingleMatch<string>{
+    return Match.matchWhile(t => t == " " || t == "\t");
 }
 
 function word(): SingleMatch<string> {
@@ -74,8 +103,3 @@ function symCountBackwards(str: string[], idx:number, symbol: string): number{
     return count;
 }
 
-export interface LexLine{
-    TabDepth: number;
-    Tokens: string[];
-    original: string;
-}

@@ -1,5 +1,6 @@
+import { CodeInput, RainbowText, Template } from "./code-input/code-input.js";
 import { Interpreter, Parser } from "./interpreter.js";
-import { Lexer } from "./Lexer.js";
+import { eTokenType, Lexer } from "./Lexer.js";
 
 export class Workspace {
     
@@ -10,7 +11,7 @@ export class Workspace {
     private _btCopy : HTMLInputElement;
     private _txtInput : HTMLTextAreaElement;
     private _txtOutput : HTMLTextAreaElement;
-    private _txtEditor : HTMLTextAreaElement;
+    private _txtEditor : CodeInput;
 
     private _fileName: string;
 
@@ -32,7 +33,8 @@ export class Workspace {
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._lblError = pane.appendChild(document.createElement("div"))
         this._lblError.className = "lblError";
-        this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
+        //this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
+        this._txtEditor = this.makeEditor(pane);
 
         let prevCode = localStorage.getItem("jsCode");
         if(prevCode == null || prevCode == ""){
@@ -45,10 +47,41 @@ export class Workspace {
         }, 0);
     }
 
-    private makeTextArea(className:string, hookEvents: boolean) {
+    private makeEditor(pane: HTMLElement): CodeInput{
+        let area = document.createElement("code-input") as CodeInput;
+        //area.setAttribute("lang", "");
+        area.classList.add("txt", "ce");
+
+        area.addEventListener("input", () => this.queueProcess());
+        area.addEventListener("dragover", () => area.classList.add("dropping"), false);
+        area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", event => this.onFileDropped(event, area as any));
+        console.log(area);
+        CodeInput.registerTemplate("def", new HefeTemplate() );
+        let wrapperIn = pane.appendChild(document.createElement("div"));
+        wrapperIn.className = "txtEd"
+        wrapperIn.appendChild(area);
+        let wrapper = pane.appendChild(document.createElement("div"));
+        wrapper.className = "txtEdBox txtPanel"
+        wrapper.appendChild(wrapperIn);
+        area.addEventListener("keydown", e => { // need to allow inserting tabs
+            if(e.key == 'Tab') {
+                e.preventDefault();
+                var start = area.selectionStart;
+                var end = area.selectionEnd;
+                area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
+                area.selectionStart = area.selectionEnd = start + 1;
+                this.queueProcess();
+            }
+        });
+        return area;
+    }
+
+    private makeTextArea(className:string, hookEvents: boolean):HTMLTextAreaElement {
         let area = document.createElement("textarea");
         area.setAttribute("spellcheck", "false");
-        area.className = className;
+        area.classList.add(className, "txtPanel", "txt");
         if (hookEvents){
             area.addEventListener("input", () => this.queueProcess());
             area.addEventListener("dragover", () => area.classList.add("dropping"), false);
@@ -139,6 +172,39 @@ export class Workspace {
         console.log("error:");
         console.log(err);
         this._lblError.textContent = err;
+    }
+}
+
+class HefeTemplate extends Template{
+    public constructor()
+    {
+        super(true, true, true, []);
+    }
+    public highlight(result_element: Element, code_input?: CodeInput): void {
+        let html_result = [];
+        let lines = code_input.value.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+            if(i > 0) html_result.push("</br>");
+            let code = lines[i];
+            let lex = Lexer.Tokenize(code);
+            for (let pos = 0; pos < code.length; pos++) {
+                const symb = code[pos];
+                const type = Lexer.getTokenAt(lex.details, pos);
+                const color = HefeTemplate.getColor(type);
+                html_result.push(`<span style="color: ${color}">${code_input.escape_html(symb)}</span>`);
+            }
+        }
+        result_element.innerHTML = html_result.join("");
+    }
+    static getColor(type: eTokenType): string{
+        switch (type) {
+            case eTokenType.comment: return "#57A64A";
+            case eTokenType.identifier: return "#DCDCDC";
+            case eTokenType.literalNumber: return "#B5CEA8";
+            case eTokenType.literalString: return "#D69D85";
+            case eTokenType.symbol: return "#DCDCDC";
+            default: return "";
+        }
     }
 }
 

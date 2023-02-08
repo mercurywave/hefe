@@ -6,34 +6,56 @@ export class Lexer {
         var arr = trim.split("");
         let idx = 0;
         let Tokens = [];
+        let details = [];
         while (idx < arr.length) {
             var result = _symbols.firstPartialMatch(arr, idx);
             if (result == null) {
                 throw "could not lex from: " + arr.slice(idx).join("");
             }
             var len = result.result.length;
-            if (result.output) { // ignoring spaces/comments, etc.
-                Tokens.push(arr.slice(idx, idx + len).join(""));
+            const token = arr.slice(idx, idx + len).join("");
+            if (result.output != eTokenType.comment && result.output != eTokenType.whiteSpace) { // ignoring spaces/comments, etc.
+                Tokens.push(token);
             }
+            details.push({ token, type: result.output, start: idx + TabDepth });
             idx += len;
         }
-        return { TabDepth, Tokens, original: code };
+        return { TabDepth, Tokens, original: code, details };
+    }
+    static getTokenAt(tokes, index) {
+        for (const t of tokes) {
+            if (index >= t.start && index < t.start + t.token.length)
+                return t.type;
+        }
+        return eTokenType.whiteSpace;
     }
 }
+export var eTokenType;
+(function (eTokenType) {
+    eTokenType[eTokenType["symbol"] = 0] = "symbol";
+    eTokenType[eTokenType["literalString"] = 1] = "literalString";
+    eTokenType[eTokenType["literalNumber"] = 2] = "literalNumber";
+    eTokenType[eTokenType["comment"] = 3] = "comment";
+    eTokenType[eTokenType["identifier"] = 4] = "identifier";
+    eTokenType[eTokenType["whiteSpace"] = 5] = "whiteSpace";
+})(eTokenType || (eTokenType = {}));
 const _symbols = new Syntax()
-    .add([symbols(" \t")], false)
-    .add([tokens(":=", ">>", "!=", "<=", ">=", "<<")], true)
-    .add([tokens("//"), Match.anything(true)], false)
-    .add([symbols("+-=/*!;\\(),.:<>&|")], true)
-    .add([number()], true)
-    .add([word()], true)
-    .add([tokens("\"\"")], true) // easier to special case an empty string
-    .add(literalString(), true);
+    .add([whitespace()], eTokenType.whiteSpace)
+    .add([tokens(":=", ">>", "!=", "<=", ">=", "<<")], eTokenType.symbol)
+    .add([tokens("//"), Match.anything(true)], eTokenType.comment)
+    .add([symbols("+-=/*!;\\(),.:<>&|")], eTokenType.symbol)
+    .add([number()], eTokenType.literalNumber)
+    .add([word()], eTokenType.identifier)
+    .add([tokens("\"\"")], eTokenType.literalString) // easier to special case an empty string
+    .add(literalString(), eTokenType.literalString);
 function tokens(...matches) {
     return Match.sequences(matches.map(s => s.split("")));
 }
 function symbols(symbols) {
     return Match.anyOf(symbols.split(""));
+}
+function whitespace() {
+    return Match.matchWhile(t => t == " " || t == "\t");
 }
 function word() {
     return Match.testSequence(t => {
