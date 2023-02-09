@@ -10,10 +10,6 @@ body {
     right: 0;
     padding: 10px;
 }
-.dropping{
-    background-color: #646281;
-    transition: background-color 200ms linear;
-}
 .txt{
     background-color: #3E3D5F;
     color: #FFF;
@@ -24,6 +20,10 @@ body {
     resize: none;
     outline: .5px solid #aaa;
     border: 0;
+}
+.dropping{
+    background-color: #646281;
+    transition: background-color 200ms linear;
 }
 .txt:focus-within{
     outline: 1px solid #fff;
