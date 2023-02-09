@@ -177,11 +177,11 @@ class HefeTemplate extends Template{
     {
         super(true, true, true, []);
     }
-    public highlight(result_element: Element, code_input?: CodeInput): void {
-        let html_result = [];
-        let lines = code_input.value.split("\n");
+    public highlight(resultElement: Element, ctl?: CodeInput): void {
+        let htmlResult: string[] = [];
+        let lines = ctl.value.split("\n");
         for (let i = 0; i < lines.length; i++) {
-            if(i > 0) html_result.push("</br>");
+            if(i > 0) htmlResult.push("</br>");
             let code = lines[i];
             try{
                 let lex = Lexer.Tokenize(code);
@@ -190,13 +190,13 @@ class HefeTemplate extends Template{
                     const symb = code[pos];
                     const type = Lexer.getTokenAt(lex.details, pos);
                     const color = HefeTemplate.getColor(type);
-                    html_result.push(`<span style="color: ${color}">${code_input.escape_html(symb)}</span>`);
+                    htmlResult.push(`<span style="color: ${color}">${ctl.escape_html(symb)}</span>`);
                 }
             } catch{
-                html_result.push(`<span style="color:#BF4938">${code_input.escape_html(code)}</span>`);
+                htmlResult.push(`<span style="color:#BF4938">${ctl.escape_html(code)}</span>`);
             }
         }
-        result_element.innerHTML = html_result.join("");
+        resultElement.innerHTML = htmlResult.join("");
     }
     static getColor(type: eTokenType): string{
         switch (type) {
