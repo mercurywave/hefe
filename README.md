@@ -23,32 +23,46 @@ Join // join all the lines back up
 
 ### Variables
 ```ts
-a << replace("Y", "N") // save off the right side of << to variable a (does not affect next line)
-b << stream // stream is a special variable to refer to the current stream
+// save off the right side of << to variable a (does not affect next line)
+a << replace("Y", "N") 
+
+// stream is a special variable to refer to the current stream
+b << stream 
+
+// index is a special variable within a scoped command
+// it contains the current index within the array
 map
-    index // index is a special variable within a scoped command, which contains the current index within the array
+    index 
 ```
 
 ### Commands
 ```ts
-exit // halt further operations (useful for debugging so you can see what is happeneing at a specific step)
+exit // halt further operations 
+// (useful for debugging so you can see what is happeneing at a specific step)
 
 map // run the indented code on each element of the array
 filter // runs each element of the array on the indented code
-// the output after the indented code is the array from the stream, but with elemnts removed which the inner code returned false
+// the output after the indented code is the array from the stream
+// however, with the elemnts removed which the inner code returned false
 
 ```
 
 ### Function
 ```ts
-foo:replace(",","_") // run the replace function on the foo variable instead of using the stream
-bar:replace()
+// run the replace function on the foo variable instead of using the stream
+foo:replace(",","_") 
+// you can chain multiple functions together this way
+bar:replace("Y",""):piece("^", 4)
 
 replace("a", "b") // replace all "a" characters with "b" in the stream
 concat(arr) // append arr onto the current array stream
 piece(":", 3) // returns the thir piece in between ":" characters of a string
 contains("text") // returns true if the string contains "text"
-slice(1, -1) // returns subset of array or substring, similar to the .slice() function in javascript
+slice(1, -1) // returns subset of array or substring
+// (it is similar to the .slice() function in javascript)
+
+iif(c <= 10, "moose") // if c is less or equal to 10, replace the stream with "moose"
+iif(d < 4, "foo", "bar") // test for a condition and replace the stream with foo or bar
 // (there are a number of other functions)
 ```
 
