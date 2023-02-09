@@ -155,12 +155,17 @@ class HefeTemplate extends Template {
             if (i > 0)
                 html_result.push("</br>");
             let code = lines[i];
-            let lex = Lexer.Tokenize(code);
-            for (let pos = 0; pos < code.length; pos++) {
-                const symb = code[pos];
-                const type = Lexer.getTokenAt(lex.details, pos);
-                const color = HefeTemplate.getColor(type);
-                html_result.push(`<span style="color: ${color}">${code_input.escape_html(symb)}</span>`);
+            try {
+                let lex = Lexer.Tokenize(code);
+                for (let pos = 0; pos < code.length; pos++) {
+                    const symb = code[pos];
+                    const type = Lexer.getTokenAt(lex.details, pos);
+                    const color = HefeTemplate.getColor(type);
+                    html_result.push(`<span style="color: ${color}">${code_input.escape_html(symb)}</span>`);
+                }
+            }
+            catch {
+                html_result.push(`<span style="color:#BF4938">${code_input.escape_html(code)}</span>`);
             }
         }
         result_element.innerHTML = html_result.join("");
