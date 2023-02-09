@@ -38,7 +38,7 @@ export class Workspace {
 
         let prevCode = localStorage.getItem("jsCode");
         if(prevCode == null || prevCode == ""){
-            prevCode = 'let a = all;\nlet b = split;\nconst c = b.map(l => "-" + l);\nreturn c.join("\\n");'
+            prevCode = 'split\nfilter\n\tcontains("Yes")\njoin';
         }
         this._txtEditor.value = prevCode;
         this._txtInput.value = "Yes|No|12|true\nNo|No|15|true\nYes|Yes|8|null";
