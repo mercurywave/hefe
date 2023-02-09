@@ -209,6 +209,7 @@ export class CodeInput extends HTMLElement {
     get selectionStart() { return this.querySelector("textarea").selectionStart; }
     set selectionEnd(val) { this.querySelector("textarea").selectionEnd = val; }
     get selectionEnd() { return this.querySelector("textarea").selectionEnd; }
+    get rawTextArea() { return this.querySelector("textarea"); }
     static registerTemplate(template_name, template) {
         // Set default class
         CodeInput.usedTemplates[template_name] = template;
@@ -236,7 +237,6 @@ export class CodeInput extends HTMLElement {
         console.log(`code-input: template: Created template ${template_name}`);
     }
 }
-CodeInput.plugins = {};
 CodeInput.observedAttributes = [
     "value",
     "placeholder",

@@ -25,9 +25,9 @@ export class Lexer {
     static getTokenAt(tokes, index) {
         for (const t of tokes) {
             if (index >= t.start && index < t.start + t.token.length)
-                return t.type;
+                return t;
         }
-        return eTokenType.whiteSpace;
+        return null;
     }
 }
 export var eTokenType;

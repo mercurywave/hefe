@@ -3,7 +3,6 @@
 // Based on a CSS-Tricks Post
 
 export class CodeInput extends HTMLElement{
-    public static plugins = {};
     public static observedAttributes:string[] = [
         "value", 
         "placeholder", 
@@ -254,6 +253,8 @@ export class CodeInput extends HTMLElement{
     public get selectionStart(): number {return this.querySelector("textarea").selectionStart;}
     public set selectionEnd(val: number) {this.querySelector("textarea").selectionEnd = val;}
     public get selectionEnd(): number {return this.querySelector("textarea").selectionEnd;}
+
+    public get rawTextArea(): HTMLTextAreaElement {return this.querySelector("textarea");}
 
     public static registerTemplate(template_name: string, template: Template) {
         // Set default class

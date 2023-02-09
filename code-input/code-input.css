@@ -91,3 +91,21 @@ code-input:not(.code-input_registered)::before {
   display: block;
   color: grey;
 }
+
+
+/*  --== Auto-complete plugin ==--  */
+code-input .code-input_autocomplete_popup {
+  display: block;
+  position: absolute;
+  margin-top: 1.3em; /* Popup shows under the caret */
+  z-index: 100;
+}
+code-input .code-input_autocomplete_popup .suggest{
+  padding: 2px 8px;
+  background-color: #222;
+}
+
+
+code-input .code-input_autocomplete_testpos {
+  opacity: 0;
+}

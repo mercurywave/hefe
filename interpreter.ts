@@ -45,6 +45,10 @@ export class Interpreter{
         state.foreachExecution(context => futures.push(child.process(context)) );
         await Promise.all(futures);
     }
+
+    public static getBuiltinSymbols(): string[]{
+        return getBuiltInsSymbols();
+    }
 }
 
 export interface TransformResult{
@@ -397,6 +401,12 @@ class ParseContext{
         }
         return count;
     }
+}
+
+function getBuiltInsSymbols(): string[]{
+    var list: string[] = Object.keys(_builtInFuncs);
+    list.push("map", "filter", "exit", "stream", "index", "true", "false");
+    return list;
 }
 
 type StatementGenerator = (depth: number, result: PatternResult<string>) => IStatement;

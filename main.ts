@@ -1,3 +1,4 @@
+import { Autocomplete } from "./code-input/autoComplete.js";
 import { CodeInput, RainbowText, Template } from "./code-input/code-input.js";
 import { Interpreter, Parser } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
@@ -54,7 +55,7 @@ export class Workspace {
 
         area.addEventListener("input", () => this.queueProcess());
         console.log(area);
-        CodeInput.registerTemplate("def", new HefeTemplate() );
+        CodeInput.registerTemplate("def", new HefeHighlighter() );
         let wrapperIn = pane.appendChild(document.createElement("div"));
         wrapperIn.className = "txtEd"
         wrapperIn.appendChild(area);
@@ -63,8 +64,17 @@ export class Workspace {
                 e.preventDefault();
                 var start = area.selectionStart;
                 var end = area.selectionEnd;
-                area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
-                area.selectionStart = area.selectionEnd = start + 1;
+                var possibleAdds = HefeHighlighter.GetSuggestions(area.rawTextArea, end);
+                if(possibleAdds.toInsert){
+                    area.value = area.value.substring(0, possibleAdds.atStart)
+                        + possibleAdds.toInsert
+                        + area.value.substring(end);
+                    area.selectionStart = area.selectionEnd = possibleAdds.atStart + possibleAdds.toInsert.length;
+                }
+                else{
+                    area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
+                    area.selectionStart = area.selectionEnd = start + 1;
+                }
                 this.queueProcess();
             }
         });
@@ -172,30 +182,41 @@ export class Workspace {
     }
 }
 
-class HefeTemplate extends Template{
+class HefeHighlighter extends Template{
+    static CustomSymbols: string[] = [];
+    static BuiltInSymbols: string[];
     public constructor()
     {
-        super(true, true, true, []);
+        super(true, true, true, [new Autocomplete(HefeHighlighter.updatePopup)]);
+        HefeHighlighter.BuiltInSymbols = Interpreter.getBuiltinSymbols();
     }
     public highlight(resultElement: Element, ctl?: CodeInput): void {
         let htmlResult: string[] = [];
         let lines = ctl.value.split("\n");
+        let baseSymbols = new Set<string>(HefeHighlighter.BuiltInSymbols);
+        let foundSymbols = new Set<string>();
         for (let i = 0; i < lines.length; i++) {
             if(i > 0) htmlResult.push("</br>");
             let code = lines[i];
             try{
                 let lex = Lexer.Tokenize(code);
 
+                for (const toke of lex.details) {
+                    if(toke.type == eTokenType.identifier && !baseSymbols.has(toke.token))
+                        foundSymbols.add(toke.token);
+                }
+
                 for (let pos = 0; pos < code.length; pos++) {
                     const symb = code[pos];
-                    const type = Lexer.getTokenAt(lex.details, pos);
-                    const color = HefeTemplate.getColor(type);
+                    const type = Lexer.getTokenAt(lex.details, pos)?.type;
+                    const color = HefeHighlighter.getColor(type);
                     htmlResult.push(`<span style="color: ${color}">${ctl.escape_html(symb)}</span>`);
                 }
             } catch{
                 htmlResult.push(`<span style="color:#BF4938">${ctl.escape_html(code)}</span>`);
             }
         }
+        HefeHighlighter.CustomSymbols = Array.from(foundSymbols);
         resultElement.innerHTML = htmlResult.join("");
     }
     static getColor(type: eTokenType): string{
@@ -208,6 +229,81 @@ class HefeTemplate extends Template{
             default: return "";
         }
     }
+    static updatePopup(popupElem: HTMLElement, textarea: HTMLTextAreaElement, selectionEnd: number){
+        const toShow = HefeHighlighter.GetSuggestions(textarea, selectionEnd).possible;
+        
+        let elems: string[] = [];
+        for (const suggest of toShow) {
+            elems.push(`<div class=suggest>${suggest}</div>`);
+        }
+        popupElem.innerHTML = elems.join("");
+    }
+    public static GetSuggestions(textarea: HTMLTextAreaElement, selectionEnd: number): CompMatchSuggestion{
+        if(selectionEnd != textarea.selectionStart) return {possible: []};
+        let lines = textarea.value.split("\n");
+        let code = "";
+        for (const line of lines) {
+            if(selectionEnd <= line.length) {
+                code = line;
+                break;
+            }
+            selectionEnd -= line.length + 1;
+        }
+        try{
+            let lex = Lexer.Tokenize(code);
+            let details = Lexer.getTokenAt(lex.details, selectionEnd - 1);
+            if(details?.type == eTokenType.identifier){
+                if(selectionEnd == details.start + details.token.length){
+                    let curr = details.token;
+                    if(HefeHighlighter.BuiltInSymbols.includes(curr)) return {possible:[]};
+                    let arr = HefeHighlighter.BuiltInSymbols.concat(HefeHighlighter.CustomSymbols);
+                    let scored: CompMatchScore[] = arr
+                        .map(s => {return {sym:s, score: HefeHighlighter.match(curr, s)}})
+                        .filter(s => s.score >= 10)
+                        .sort((a,b) => b.score - a.score); // lower idx better
+                    if(scored.length == 0) return {possible:[]}
+                    
+                    const possible = scored.map(s => s.sym);
+                    return {
+                        possible,
+                        toInsert: possible[0],
+                        atStart: textarea.selectionEnd - curr.length
+                    };
+                }
+            }
+        }catch{}
+        return  {possible:[]};
+    }
+    static match(token: string, possible: string): number{
+        if(token.length >= possible.length) return 0;
+        let exact = 0;
+        for (let i = 0; i < token.length; i++) {
+            if(token[i] != possible[i]) break;
+            exact++;
+        }
+        let remTok = token.slice(exact);
+        let remPoss = possible.slice(exact);
+        let close = 0;
+        for (let i = 0; i < remTok.length; i++) {
+            let sym = remTok[i];
+            if(remPoss.includes(sym))
+            {
+                close += 1 + (sym == sym.toUpperCase() ? 3 : 0);
+            }
+        }
+        return exact * 10 + close;
+    }
+}
+
+interface CompMatchScore{
+    sym: string;
+    score: number;
+}
+
+interface CompMatchSuggestion{
+    possible: string[];
+    toInsert?: string;
+    atStart?: number;
 }
 
 let _instance : Workspace;

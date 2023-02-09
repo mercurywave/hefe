@@ -22,12 +22,12 @@ export class Lexer{
         }
         return {TabDepth, Tokens, original: code, details};
     }
-    public static getTokenAt(tokes: TokeDetails[], index: number){
+    public static getTokenAt(tokes: TokeDetails[], index: number): TokeDetails{
         for (const t of tokes) {
             if(index >= t.start && index < t.start + t.token.length)
-                return t.type;
+                return t;
         }
-        return eTokenType.whiteSpace;
+        return null;
     }
 }
 

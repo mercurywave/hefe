@@ -41,6 +41,9 @@ export class Interpreter {
         state.foreachExecution(context => futures.push(child.process(context)));
         await Promise.all(futures);
     }
+    static getBuiltinSymbols() {
+        return getBuiltInsSymbols();
+    }
 }
 Interpreter.__gen = 0;
 export class ExecutionContext {
@@ -397,6 +400,11 @@ class ParseContext {
         }
         return count;
     }
+}
+function getBuiltInsSymbols() {
+    var list = Object.keys(_builtInFuncs);
+    list.push("map", "filter", "exit", "stream", "index", "true", "false");
+    return list;
 }
 const _statements = new Syntax()
     .add([token("map")], (dep, res) => new SMap(dep))
