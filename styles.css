@@ -22,6 +22,12 @@ body {
     overflow-x: auto;
     tab-size: 4;
     resize: none;
+    outline: .5px solid #aaa;
+    border: 0;
+}
+.txt:focus-within{
+    outline: 1px solid #fff;
+    border-radius: 2px;
 }
 .txtPanel{
     position: fixed;
@@ -31,6 +37,7 @@ body {
 }
 .ed{
     margin: 0;
+    height: 100%;
 }
 .txtIn{
     bottom: 40%;
@@ -41,11 +48,17 @@ body {
     left: 50%;
 }
 .txtEd{
-    position: relative;
-    margin: 0;
-}
-.txtEdBox{
+    background-color: #3E3D5F;
     top: calc(60% + 1.5em);
+    position: fixed;
+    left:0; right:0; bottom:1.5em;
+    margin: 5px;
+    outline: .5px solid #aaa;
+    padding: 8px;
+}
+.txtEd:focus-within{
+    outline: 1px solid #fff;
+    border-radius: 2px;
 }
 .lblError{
     position: fixed;

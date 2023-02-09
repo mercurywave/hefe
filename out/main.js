@@ -31,20 +31,13 @@ export class Workspace {
     makeEditor(pane) {
         let area = document.createElement("code-input");
         //area.setAttribute("lang", "");
-        area.classList.add("txt", "ce");
+        area.classList.add("ed");
         area.addEventListener("input", () => this.queueProcess());
-        area.addEventListener("dragover", () => area.classList.add("dropping"), false);
-        area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
-        area.addEventListener("drop", () => area.classList.remove("dropping"), false);
-        area.addEventListener("drop", event => this.onFileDropped(event, area));
         console.log(area);
         CodeInput.registerTemplate("def", new HefeTemplate());
         let wrapperIn = pane.appendChild(document.createElement("div"));
         wrapperIn.className = "txtEd";
         wrapperIn.appendChild(area);
-        let wrapper = pane.appendChild(document.createElement("div"));
-        wrapper.className = "txtEdBox txtPanel";
-        wrapper.appendChild(wrapperIn);
         area.addEventListener("keydown", e => {
             if (e.key == 'Tab') {
                 e.preventDefault();
@@ -55,6 +48,10 @@ export class Workspace {
                 this.queueProcess();
             }
         });
+        area.addEventListener("dragover", () => area.classList.add("dropping"), false);
+        area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", () => area.classList.remove("dropping"), false);
+        area.addEventListener("drop", event => this.onFileDropped(event, area));
         return area;
     }
     makeTextArea(className, hookEvents) {
