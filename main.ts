@@ -216,6 +216,8 @@ class HefeHighlighter extends Template{
                 htmlResult.push(`<span style="color:#BF4938">${ctl.escape_html(code)}</span>`);
             }
         }
+        // extra space makes sure the pre height matches the inner text area
+        htmlResult.push(`<span style="color:#BF4938">&nbsp;</span>`); 
         HefeHighlighter.CustomSymbols = Array.from(foundSymbols);
         resultElement.innerHTML = htmlResult.join("");
     }

@@ -3,6 +3,7 @@ body {
     background-color: #2E2F43;
     color: #FFF;
     margin-left: 5px;
+    overflow: hidden;
 }
 .toolbar{
     position: fixed;
