@@ -275,21 +275,46 @@ export class Stream {
         if(this.text !== null) return this.text;
         if(this.num !== null) return "" + this.num;
         if(this.bool !== null) return "" + this.bool;
-        throw 'cannot cast to number';
+        throw 'cannot cast to string';
     }
     public asBool(): boolean{
         if(this.bool !== null) return this.bool;
         if(this.num !== null) return this.num != 0;
-        throw 'cannot cast to number';
+        throw 'cannot cast to bool';
     }
     public asArray(): Stream[]{
         if(this.array !== null) return this.array; // caution! original reference!
-        throw 'cannot cast to number';
+        throw 'cannot cast to array';
     }
     public get isNum(): boolean { return this.num !== null; }
     public get isText(): boolean { return this.text !== null; }
     public get isBool(): boolean { return this.bool !== null; }
     public get isArray(): boolean { return this.array !== null; }
+
+    public static Compare(a: Stream, b: Stream): number{
+        if(a === b) return 0;
+        if(a == null) return -1;
+        if(b == null) return 1;
+        if(a.isNum && b.isNum) return a.num - b.num;
+        if(a.isText && b.isText) return a.asString().localeCompare(b.asString());
+        if(a.isBool && b.isBool) return (a.asBool() ? 1 : -1) + (b.asBool() ? -1 : 1);
+        if(a.isArray && b.isArray){
+            for (let i = 0; i < a.array.length && i < b.array.length; i++) {
+                const comp = Stream.Compare(a.array[i], b.array[i]);
+                if(comp != 0) return comp;
+            }
+            if(a.array.length > b.array.length) return 1;
+            if(a.array.length < b.array.length) return -1;
+            return 0;
+        }
+        if(a.isNum) return 1;
+        if(b.isNum) return -1;
+        if(a.isText) return 1;
+        if(b.isText) return -1;
+        if(a.isBool) return 1;
+        if(b.isBool) return -1;
+        throw 'unreachable comparison reached';
+    }
 }
 
 
@@ -404,7 +429,7 @@ class ParseContext{
 
 function getBuiltInsSymbols(): string[]{
     var list: string[] = Object.keys(_builtInFuncs);
-    list.push("map", "filter", "exit", "stream", "index", "true", "false");
+    list.push("map", "filter", "sortBy", "exit", "stream", "index", "true", "false");
     return list;
 }
 
@@ -413,6 +438,7 @@ const _statements = new Syntax<string, StatementGenerator>()
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
     .add([token("exit")], (dep, res) => new SExit(dep))
+    .add([token("sortBy")], (dep, res) => new SSortBy(dep))
     .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
 ;
@@ -538,6 +564,27 @@ class SFilter extends IStatement{
         const prev = context.stream.asArray();
         const filtered = prev.filter((v,i) => streams[i].asBool());
         context.updateStream(Stream.mkArr(filtered));
+    }
+}
+
+class SSortBy extends IStatement{
+    public constructor(depth: number){
+        super(depth);
+    }
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isArray) throw 'sortBy command expected to process an array';
+    }
+    public onOpenChildScope(context: ExecutionContext):Stream[]{
+        return context.stream.asArray().slice();
+    }
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]){
+        const prev = context.stream.asArray();
+        let idxes = Object.keys(prev);
+        idxes.sort((a,b) => {
+            return Stream.Compare(streams[a], streams[b]);
+        });
+        const sorted = idxes.map(i => prev[i]);
+        context.updateStream(Stream.mkArr(sorted));
     }
 }
 
@@ -736,7 +783,7 @@ class EOperator extends IExpression{
                 return 4;
             case "&":
             case "|":
-                return 4;
+                return 5;
             default: throw 'operator does not have priority?';
         }
     }
@@ -856,6 +903,14 @@ regFunc("iif", 2, 3, async (c, stream, pars) =>{
     }
     if(pars.length > 2) return await pars[2].Eval(c);
     return stream;
+});
+
+regFunc("tryParseNum", 0, 0, async (c, stream, pars) =>{
+    if(!stream.isText) return stream;
+    const text = stream.asString();
+    const flo = parseFloat(text);
+    if (isNaN(flo)) return stream;
+    return Stream.mkNum(flo);
 });
 
 function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {

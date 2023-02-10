@@ -260,24 +260,63 @@ export class Stream {
             return "" + this.num;
         if (this.bool !== null)
             return "" + this.bool;
-        throw 'cannot cast to number';
+        throw 'cannot cast to string';
     }
     asBool() {
         if (this.bool !== null)
             return this.bool;
         if (this.num !== null)
             return this.num != 0;
-        throw 'cannot cast to number';
+        throw 'cannot cast to bool';
     }
     asArray() {
         if (this.array !== null)
             return this.array; // caution! original reference!
-        throw 'cannot cast to number';
+        throw 'cannot cast to array';
     }
     get isNum() { return this.num !== null; }
     get isText() { return this.text !== null; }
     get isBool() { return this.bool !== null; }
     get isArray() { return this.array !== null; }
+    static Compare(a, b) {
+        if (a === b)
+            return 0;
+        if (a == null)
+            return -1;
+        if (b == null)
+            return 1;
+        if (a.isNum && b.isNum)
+            return a.num - b.num;
+        if (a.isText && b.isText)
+            return a.asString().localeCompare(b.asString());
+        if (a.isBool && b.isBool)
+            return (a.asBool() ? 1 : -1) + (b.asBool() ? -1 : 1);
+        if (a.isArray && b.isArray) {
+            for (let i = 0; i < a.array.length && i < b.array.length; i++) {
+                const comp = Stream.Compare(a.array[i], b.array[i]);
+                if (comp != 0)
+                    return comp;
+            }
+            if (a.array.length > b.array.length)
+                return 1;
+            if (a.array.length < b.array.length)
+                return -1;
+            return 0;
+        }
+        if (a.isNum)
+            return 1;
+        if (b.isNum)
+            return -1;
+        if (a.isText)
+            return 1;
+        if (b.isText)
+            return -1;
+        if (a.isBool)
+            return 1;
+        if (b.isBool)
+            return -1;
+        throw 'unreachable comparison reached';
+    }
 }
 export class Parser {
     static Parse(code) {
@@ -402,13 +441,14 @@ class ParseContext {
 }
 function getBuiltInsSymbols() {
     var list = Object.keys(_builtInFuncs);
-    list.push("map", "filter", "exit", "stream", "index", "true", "false");
+    list.push("map", "filter", "sortBy", "exit", "stream", "index", "true", "false");
     return list;
 }
 const _statements = new Syntax()
     .add([token("map")], (dep, res) => new SMap(dep))
     .add([token("filter")], (dep, res) => new SFilter(dep))
     .add([token("exit")], (dep, res) => new SExit(dep))
+    .add([token("sortBy")], (dep, res) => new SSortBy(dep))
     .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
@@ -519,6 +559,27 @@ class SFilter extends IStatement {
         const prev = context.stream.asArray();
         const filtered = prev.filter((v, i) => streams[i].asBool());
         context.updateStream(Stream.mkArr(filtered));
+    }
+}
+class SSortBy extends IStatement {
+    constructor(depth) {
+        super(depth);
+    }
+    async process(context) {
+        if (!context.stream.isArray)
+            throw 'sortBy command expected to process an array';
+    }
+    onOpenChildScope(context) {
+        return context.stream.asArray().slice();
+    }
+    onCloseChildScope(context, streams) {
+        const prev = context.stream.asArray();
+        let idxes = Object.keys(prev);
+        idxes.sort((a, b) => {
+            return Stream.Compare(streams[a], streams[b]);
+        });
+        const sorted = idxes.map(i => prev[i]);
+        context.updateStream(Stream.mkArr(sorted));
     }
 }
 class SStoreLocal extends IStatement {
@@ -695,7 +756,7 @@ class EOperator extends IExpression {
                 return 4;
             case "&":
             case "|":
-                return 4;
+                return 5;
             default: throw 'operator does not have priority?';
         }
     }
@@ -817,6 +878,15 @@ regFunc("iif", 2, 3, async (c, stream, pars) => {
     if (pars.length > 2)
         return await pars[2].Eval(c);
     return stream;
+});
+regFunc("tryParseNum", 0, 0, async (c, stream, pars) => {
+    if (!stream.isText)
+        return stream;
+    const text = stream.asString();
+    const flo = parseFloat(text);
+    if (isNaN(flo))
+        return stream;
+    return Stream.mkNum(flo);
 });
 function regFunc(name, minP, maxP, action) {
     _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
