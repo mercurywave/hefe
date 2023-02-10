@@ -34,7 +34,6 @@ export class Workspace {
         //area.setAttribute("lang", "");
         area.classList.add("ed");
         area.addEventListener("input", () => this.queueProcess());
-        console.log(area);
         CodeInput.registerTemplate("def", new HefeHighlighter());
         let wrapperIn = pane.appendChild(document.createElement("div"));
         wrapperIn.className = "txtEd";
@@ -125,7 +124,7 @@ export class Workspace {
     async asyncProcess(code) {
         try {
             var parse = Parser.Parse(code);
-            console.log(parse);
+            //console.log(parse);
             const input = {
                 text: this._txtInput.value,
                 fileName: this._fileName ?? "[temp file]",
@@ -149,8 +148,7 @@ export class Workspace {
         console.log("copied to clipboard");
     }
     ShowError(err) {
-        console.log("error:");
-        console.log(err);
+        console.log("error:", err);
         this._lblError.textContent = err;
     }
 }
@@ -248,10 +246,10 @@ class HefeHighlighter extends Template {
         return { possible: [] };
     }
     static match(token, possible) {
-        if (token.length >= possible.length)
+        if (token === possible)
             return 0;
         let exact = 0;
-        for (let i = 0; i < token.length; i++) {
+        for (let i = 0; i < token.length && i < possible.length; i++) {
             if (token[i] != possible[i])
                 break;
             exact++;

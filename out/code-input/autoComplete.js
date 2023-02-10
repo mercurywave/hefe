@@ -17,7 +17,12 @@ export class Autocomplete extends Plugin {
         let textarea = codeInput.querySelector("textarea");
         let caretCoords = this.getCaretCoordinates(codeInput, textarea, textarea.selectionEnd, onlyScrolled);
         let popupElem = codeInput.querySelector(".code-input_autocomplete_popup");
-        popupElem.style.top = caretCoords.top + "px";
+        if (caretCoords.top > textarea.clientHeight * 2 / 3) {
+            popupElem.style.top = (caretCoords.top - popupElem.clientHeight - 20) + "px";
+        }
+        else { // pop below
+            popupElem.style.top = caretCoords.top + "px";
+        }
         popupElem.style.left = caretCoords.left + "px";
         if (!onlyScrolled) {
             this.updatePopupCallback(popupElem, textarea, textarea.selectionEnd);

@@ -24,7 +24,6 @@ export class Interpreter {
                 await Interpreter.parallelProcess(state, 0, step);
             }
             catch (err) {
-                console.log(err);
                 return { output: state.exportAsStream(), step: state.line, isComplete: false, error: err };
             }
             lastScope = step;

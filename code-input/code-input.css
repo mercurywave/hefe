@@ -99,10 +99,11 @@ code-input .code-input_autocomplete_popup {
   position: absolute;
   margin-top: 1.3em; /* Popup shows under the caret */
   z-index: 100;
+  outline: #666 .5px solid;
 }
 code-input .code-input_autocomplete_popup .suggest{
   padding: 2px 8px;
-  background-color: #222;
+  background-color: #2E2F43;
 }
 
 

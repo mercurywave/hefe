@@ -19,7 +19,11 @@ export class Autocomplete extends Plugin {
         let textarea = codeInput.querySelector("textarea");
         let caretCoords = this.getCaretCoordinates(codeInput, textarea, textarea.selectionEnd, onlyScrolled);
         let popupElem = codeInput.querySelector(".code-input_autocomplete_popup") as HTMLElement;
-        popupElem.style.top = caretCoords.top + "px";
+        if(caretCoords.top > textarea.clientHeight * 2 / 3){
+            popupElem.style.top = (caretCoords.top - popupElem.clientHeight - 20) + "px";
+        } else{ // pop below
+            popupElem.style.top = caretCoords.top + "px";
+        }
         popupElem.style.left = caretCoords.left + "px";
         
         if(!onlyScrolled) {
@@ -49,7 +53,7 @@ export class Autocomplete extends Plugin {
      * @param {boolean} onlyScrolled True if no edits have been made to the text and the caret hasn't been repositioned 
      * @returns 
      */
-    getCaretCoordinates(codeInput: CodeInput, textarea: HTMLTextAreaElement, charIndex: number, onlyScrolled: boolean) {
+    getCaretCoordinates(codeInput: CodeInput, textarea: HTMLTextAreaElement, charIndex: number, onlyScrolled: boolean):Coords {
         let afterSpan: HTMLElement;
         if(onlyScrolled) {
             // No edits to text; don't update element - span at index 1 is after span
@@ -78,4 +82,9 @@ export class Autocomplete extends Plugin {
         }
         return {"top": afterSpan.offsetTop - textarea.scrollTop, "left": afterSpan.offsetLeft - textarea.scrollLeft};
     }
+}
+
+interface Coords{
+    top: number;
+    left: number;
 }
