@@ -27,7 +27,9 @@ Join // join all the lines back up
 a << replace("Y", "N") 
 
 // stream is a special variable to refer to the current stream
-b << stream 
+b << stream
+
+c << [1,2,3] // creates an array of elements 1, 2, and 3
 
 // index is a special variable within a scoped command
 // it contains the current index within the array
@@ -56,6 +58,7 @@ bar:replace("Y",""):piece("^", 4)
 
 replace("a", "b") // replace all "a" characters with "b" in the stream
 concat(arr) // append arr onto the current array stream
+at(4) // access a single element at a specific element
 piece(":", 3) // returns the thir piece in between ":" characters of a string
 contains("text") // returns true if the string contains "text"
 slice(1, -1) // returns subset of array or substring

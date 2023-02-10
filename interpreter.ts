@@ -358,7 +358,7 @@ export class Parser{
     public static tryParseParamList(parse: PatternResult<string>, key?: string): IExpression[] | null{
         let tokes = parse?.tryGetByKey(key ?? "params");
         if(tokes == null) return [];
-        return this.tryParseExpressions(tokes.slice(1, -1));
+        return Parser.tryParseExpressions(tokes.slice(1, -1));
     }
 
     // null is valid, but a buggy expresison will throw
@@ -457,6 +457,8 @@ const _expressionComps = new Syntax<string, ExpressionGenerator>()
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
     .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
+    .add([token("["), token("]")], res => new EArrayDef(res))
+    .add([token("["), expressionLike(), token("]")], res => new EArrayDef(res))
 ;
 
 abstract class IStatement{
@@ -501,8 +503,8 @@ function expressionLike(stop?: string, optional?: boolean):SingleMatch<string> {
     return Match.testSequence(tokes => {
         const trail = tokes[token.length-1];
         if(stop && trail === stop) return false;
-        const lPars = arrCount(tokes, "(");
-        const rPars = arrCount(tokes, ")");
+        const lPars = arrCount(tokes, "(", "[");
+        const rPars = arrCount(tokes, ")", "]");
         if(lPars < rPars) return false;
         if(lPars > rPars) return null;
         return true;
@@ -699,6 +701,21 @@ class EExpression extends IExpression{
     }
 }
 
+class EArrayDef extends IExpression{
+    __elements : IExpression[];
+    public constructor(parse: PatternResult<string>){
+        super();
+        let tokes = parse.tryGetByKey("exp");
+        if(tokes == null) this.__elements = []; // the [] case
+        else this.__elements = Parser.tryParseExpressions(tokes);
+    }
+    public async Eval(context: ExecutionContext): Promise<Stream> {
+        const tasks = this.__elements.map(async e => await e.Eval(context));
+        const elems = await Promise.all(tasks);
+        return Stream.mkArr(elems);
+    }
+}
+
 class EUnary extends IExpression{
     __right: IExpression;
     __op: string;
@@ -851,6 +868,12 @@ regFunc("piece", 2, 2, async (c, stream, pars) =>{
     return Stream.mkText(split[idx - 1]);
 });
 
+regFunc("at", 1, 1, async (c, stream, pars) =>{
+    if(!stream.isArray) throw "cannot access stream array element - expected array";
+    const idx = (await pars[0].Eval(c)).asNum();
+    return stream.asArray()[idx];
+});
+
 regFunc("contains", 1, 1, async (c, stream, pars) =>{
     if(!stream.isText) throw "cannot check stream for substring contains - expected string";
     const target = await pars[0].EvalAsText(c);
@@ -928,10 +951,10 @@ interface IFunction{
     action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>;
 }
 
-function arrCount<T>(arr: T[], elem:T): number
+function arrCount<T>(arr: T[], ...elems:T[]): number
 {
     if(arr.length == 0) return 0;
-    return arr.map<number>(curr => curr == elem ? 1 : 0).reduce((sum, curr) => sum + curr);
+    return arr.map<number>(curr => elems.includes(curr) ? 1 : 0).reduce((sum, curr) => sum + curr);
 }
 
 function assertParams(pars: IExpression[] | null, min: number, max: number): boolean{

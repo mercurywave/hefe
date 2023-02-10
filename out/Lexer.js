@@ -43,7 +43,7 @@ const _symbols = new Syntax()
     .add([whitespace()], eTokenType.whiteSpace)
     .add([tokens(":=", ">>", "!=", "<=", ">=", "<<")], eTokenType.symbol)
     .add([tokens("//"), Match.anything(true)], eTokenType.comment)
-    .add([symbols("+-=/*!;\\(),.:<>&|")], eTokenType.symbol)
+    .add([symbols("+-=/*!;\\()[],.:<>&|")], eTokenType.symbol)
     .add([number()], eTokenType.literalNumber)
     .add([word()], eTokenType.identifier)
     .add([tokens("\"\"")], eTokenType.literalString) // easier to special case an empty string

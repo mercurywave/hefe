@@ -363,7 +363,7 @@ export class Parser {
         let tokes = parse?.tryGetByKey(key ?? "params");
         if (tokes == null)
             return [];
-        return this.tryParseExpressions(tokes.slice(1, -1));
+        return Parser.tryParseExpressions(tokes.slice(1, -1));
     }
     // null is valid, but a buggy expresison will throw
     static tryParseExpressions(tokens) {
@@ -463,7 +463,9 @@ const _expressionComps = new Syntax()
     .add([unary(), expressionLike()], res => new EUnary(res))
     .add([literalNumber()], res => new ENumericLiteral(res))
     .add([literalString()], res => new EStringLiteral(res))
-    .add([token("("), expressionLike(), token(")")], res => new EExpression(res));
+    .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
+    .add([token("["), token("]")], res => new EArrayDef(res))
+    .add([token("["), expressionLike(), token("]")], res => new EArrayDef(res));
 class IStatement {
     constructor(depth) {
         this.tabDepth = depth;
@@ -500,8 +502,8 @@ function expressionLike(stop, optional) {
         const trail = tokes[token.length - 1];
         if (stop && trail === stop)
             return false;
-        const lPars = arrCount(tokes, "(");
-        const rPars = arrCount(tokes, ")");
+        const lPars = arrCount(tokes, "(", "[");
+        const rPars = arrCount(tokes, ")", "]");
         if (lPars < rPars)
             return false;
         if (lPars > rPars)
@@ -675,6 +677,21 @@ class EExpression extends IExpression {
         return this.__inner.Eval(context);
     }
 }
+class EArrayDef extends IExpression {
+    constructor(parse) {
+        super();
+        let tokes = parse.tryGetByKey("exp");
+        if (tokes == null)
+            this.__elements = []; // the [] case
+        else
+            this.__elements = Parser.tryParseExpressions(tokes);
+    }
+    async Eval(context) {
+        const tasks = this.__elements.map(async (e) => await e.Eval(context));
+        const elems = await Promise.all(tasks);
+        return Stream.mkArr(elems);
+    }
+}
 class EUnary extends IExpression {
     constructor(parse) {
         super();
@@ -820,6 +837,12 @@ regFunc("piece", 2, 2, async (c, stream, pars) => {
     const split = stream.asString().split(delim);
     return Stream.mkText(split[idx - 1]);
 });
+regFunc("at", 1, 1, async (c, stream, pars) => {
+    if (!stream.isArray)
+        throw "cannot access stream array element - expected array";
+    const idx = (await pars[0].Eval(c)).asNum();
+    return stream.asArray()[idx];
+});
 regFunc("contains", 1, 1, async (c, stream, pars) => {
     if (!stream.isText)
         throw "cannot check stream for substring contains - expected string";
@@ -894,10 +917,10 @@ function regFunc(name, minP, maxP, action) {
 function mkFunc(name, minP, maxP, action) {
     return { name, minP, maxP, action };
 }
-function arrCount(arr, elem) {
+function arrCount(arr, ...elems) {
     if (arr.length == 0)
         return 0;
-    return arr.map(curr => curr == elem ? 1 : 0).reduce((sum, curr) => sum + curr);
+    return arr.map(curr => elems.includes(curr) ? 1 : 0).reduce((sum, curr) => sum + curr);
 }
 function assertParams(pars, min, max) {
     let len = pars?.length ?? 0;
