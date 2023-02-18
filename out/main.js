@@ -4,6 +4,8 @@ import { Interpreter, Parser } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 export class Workspace {
     constructor(pane) {
+        this._loadedScripts = [];
+        this._scriptTabs = {};
         this._paneMain = pane;
         this._lblFile = pane.appendChild(document.createElement("h1"));
         this._lblFile.textContent = "Hefe - brew up a transform";
@@ -17,21 +19,21 @@ export class Workspace {
         this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
         this._lblError = pane.appendChild(document.createElement("div"));
         this._lblError.className = "lblError";
-        //this._txtEditor = pane.appendChild(this.makeTextArea("txtEd", true));
         this._txtEditor = this.makeEditor(pane);
-        let prevCode = localStorage.getItem("jsCode");
-        if (prevCode == null || prevCode == "") {
-            prevCode = 'split\nfilter\n\tcontains("Yes")\njoin';
-        }
-        this._txtEditor.value = prevCode;
         this._txtInput.value = "Yes|No|12|true\nNo|No|15|true\nYes|Yes|8|null";
         setTimeout(() => {
             this.process();
         }, 0);
+        this._paneBottom = pane.appendChild(document.createElement("div"));
+        this._paneBottom.classList.add('bottomBar');
+        this._paneBottom.addEventListener('wheel', e => this._paneBottom.scrollLeft += e.deltaY);
+        this._btAddTab = this._paneBottom.appendChild(this.makeAddTab());
+        this._paneTabs = this._paneBottom.appendChild(document.createElement("span"));
+        this._paneTabs.classList.add('tabList');
+        this.loadTabs();
     }
     makeEditor(pane) {
         let area = document.createElement("code-input");
-        //area.setAttribute("lang", "");
         area.classList.add("ed");
         area.addEventListener("input", () => this.queueProcess());
         CodeInput.registerTemplate("def", new HefeHighlighter());
@@ -86,6 +88,80 @@ export class Workspace {
         });
         return area;
     }
+    loadTabs() {
+        let array = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            let key = localStorage.key(i);
+            if (key.startsWith("hefe")) {
+                array.push(new Script(key));
+            }
+        }
+        if (array.length == 0) {
+            array.push(new Script());
+        }
+        array.sort((a, b) => b.LastEdit.getTime() - a.LastEdit.getTime());
+        for (let script of array) {
+            const tab = this.makeTab(script);
+            this._paneTabs.appendChild(tab);
+        }
+        this.switchToTab(array[0]);
+    }
+    makeTab(script) {
+        this._loadedScripts.push(script);
+        let tab = document.createElement("span");
+        this._scriptTabs[script.Key] = tab;
+        tab.classList.add('tab');
+        let lbl = tab.appendChild(document.createElement("span"));
+        lbl.classList.add("lbl");
+        lbl.innerText = script.Name;
+        let txtName = tab.appendChild(document.createElement("input"));
+        txtName.type = 'text';
+        txtName.value = script.Name;
+        txtName.addEventListener('change', () => {
+            script.Name = txtName.value;
+            lbl.innerText = script.Name;
+            script.Save();
+        });
+        txtName.addEventListener('blur', () => {
+            tab.classList.remove('editing');
+        });
+        tab.addEventListener('click', () => {
+            if (script == this._selectedScript) {
+                tab.classList.toggle('editing');
+                txtName.focus();
+            }
+            else {
+                this.switchToTab(script);
+            }
+        });
+        return tab;
+    }
+    makeAddTab() {
+        let bt = this._paneBottom.appendChild(document.createElement("span"));
+        bt.classList.add('btAdd', 'tab');
+        bt.innerText = "+";
+        bt.addEventListener('click', () => this.generateNewScript());
+        return bt;
+    }
+    generateNewScript() {
+        let script = new Script();
+        let id = this._loadedScripts.filter(s => s.Name.startsWith("temp ")).length + 1;
+        script.Name = "temp " + id;
+        let tab = this.makeTab(script);
+        this._paneTabs.insertBefore(tab, this._paneTabs.firstChild);
+        this.switchToTab(script);
+    }
+    switchToTab(script) {
+        var prev = this._selectedScript;
+        if (prev != null) {
+            this._selectedScript = null; // set to null so we don't update timestamp
+            this._scriptTabs[prev.Key].classList.remove('selected');
+        }
+        this._txtEditor.value = script.Code;
+        this._selectedScript = script;
+        this._scriptTabs[script.Key].classList.add('selected');
+        this.process();
+    }
     onFileDropped(ev, target) {
         if (ev.dataTransfer.items) {
             for (const item of ev.dataTransfer.items) {
@@ -114,7 +190,10 @@ export class Workspace {
         //const a = new Parser();
         try {
             const code = this._txtEditor.value;
-            localStorage.setItem("jsCode", code);
+            if (this._selectedScript != null && this._selectedScript.Code != code) {
+                this._selectedScript.Code = code;
+                this._selectedScript.Save();
+            }
             this.asyncProcess(code);
         }
         catch (err) {
@@ -150,6 +229,41 @@ export class Workspace {
     ShowError(err) {
         console.log("error:", err);
         this._lblError.textContent = err;
+    }
+}
+class Script {
+    constructor(key) {
+        if (key == null) {
+            let iter = Date.now();
+            while (localStorage.getItem("hefe" + iter) != null) {
+                iter++;
+            }
+            this.Key = "hefe" + iter;
+            this.Name = "???";
+            this.Code = "";
+            this.LastEdit = new Date();
+        }
+        else {
+            this.Key = key;
+            const obj = JSON.parse(localStorage.getItem(key));
+            this.Name = obj.name;
+            this.LastEdit = new Date(JSON.parse(obj.edit));
+            this.Code = obj.code;
+            if (this.Name == "")
+                this.Name = (new Date()).toDateString();
+        }
+    }
+    Save() {
+        if (this.Code == "") {
+            localStorage.removeItem(this.Key);
+            return;
+        }
+        const obj = {
+            name: this.Name,
+            edit: JSON.stringify(new Date()),
+            code: this.Code
+        };
+        localStorage.setItem(this.Key, JSON.stringify(obj));
     }
 }
 class HefeHighlighter extends Template {
