@@ -333,7 +333,7 @@ export class Parser {
         const tokens = Lexer.Tokenize(code);
         context.currLineDepth = context.getDepth(tokens.TabDepth);
         if (tokens.Tokens.length == 0)
-            return new SNoop(context, tokens.TabDepth);
+            return new SNoop(context);
         return this.ParseStatements(context, tokens.Tokens);
     }
     static ParseStatements(context, tokens) {
@@ -476,12 +476,11 @@ class IStatement {
 }
 class IExpression {
     async EvalAsText(context) {
-        let out = await this.Eval(context);
+        let out = await this.Eval(context, context.stream);
         if (out.text == null)
             throw 'expected expression to evaluate as string, got ' + out.toDisplayText();
         return out.text;
     }
-    async EvalAsMethod(context, stream) { throw 'expression is not a method'; }
 }
 class ICanHaveScope extends IExpression {
 }
@@ -613,7 +612,7 @@ class SStoreLocal extends IStatement {
         this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
     }
     async process(context) {
-        const result = await this.__exp.Eval(context);
+        const result = await this.__exp.Eval(context, context.stream);
         context.saveVar(this.__ident, result);
     }
 }
@@ -623,7 +622,7 @@ class SExpression extends IStatement {
         this.__exp = Parser.tryParseExpression(context, parse.GetSlice());
     }
     async process(context) {
-        const result = await this.__exp.Eval(context);
+        const result = await this.__exp.Eval(context, context.stream);
         context.updateStream(result);
     }
 }
@@ -636,45 +635,41 @@ class EIdentifier extends IExpression {
         super();
         this.name = parse.getSingleKey("ident");
     }
-    async Eval(context) {
+    async Eval(context, stream) {
         let func = _builtInFuncs[this.name];
         if (func != null) {
-            return await EFunctionCall.runFunc(this.name, [], context, context.stream);
+            return await EFunctionCall.runFunc(this.name, [], context, stream);
         }
+        if (stream != context.stream)
+            throw `cannot evaluate ${this.name} as a method`;
         let obj = context.get(this.name);
         if (obj == null)
             throw `unknown variable "${this.name}"`;
         return obj;
     }
-    async EvalAsMethod(context, stream) {
-        let func = _builtInFuncs[this.name];
-        if (func != null) {
-            return await EFunctionCall.runFunc(this.name, [], context, stream);
-        }
-    }
 }
 class EStream extends IExpression {
     constructor() { super(); }
-    async Eval(context) { return context.stream; }
+    async Eval(context, stream) { return context.stream; }
 }
 class EIndex extends IExpression {
     constructor() { super(); }
-    async Eval(context) { return Stream.mkNum(context.leafNode.index); }
+    async Eval(context, stream) { return Stream.mkNum(context.leafNode.index); }
 }
 class ETrueLiteral extends IExpression {
     constructor() { super(); }
-    async Eval(context) { return Stream.mkBool(true); }
+    async Eval(context, stream) { return Stream.mkBool(true); }
 }
 class EFalseLiteral extends IExpression {
     constructor() { super(); }
-    async Eval(context) { return Stream.mkBool(false); }
+    async Eval(context, stream) { return Stream.mkBool(false); }
 }
 class ENumericLiteral extends IExpression {
     constructor(parse) {
         super();
         this.__num = Number.parseFloat(parse.PullOnlyResult());
     }
-    async Eval(context) {
+    async Eval(context, stream) {
         return new Stream(null, null, this.__num);
     }
 }
@@ -685,7 +680,7 @@ class EStringLiteral extends IExpression {
         // this seems like something where there should be a better way...
         this.__str = JSON.parse(str); // str.substring(1, str.length - 1).replace();
     }
-    async Eval(context) {
+    async Eval(context, stream) {
         return new Stream(this.__str);
     }
 }
@@ -695,8 +690,8 @@ class EExpression extends IExpression {
         let tokes = parse.tryGetByKey("exp");
         this.__inner = Parser.tryParseExpression(context, tokes);
     }
-    async Eval(context) {
-        return this.__inner.Eval(context);
+    async Eval(context, stream) {
+        return this.__inner.Eval(context, context.stream);
     }
 }
 class EArrayDef extends IExpression {
@@ -708,8 +703,8 @@ class EArrayDef extends IExpression {
         else
             this.__elements = Parser.tryParseExpressions(context, tokes);
     }
-    async Eval(context) {
-        const tasks = this.__elements.map(async (e) => await e.Eval(context));
+    async Eval(context, stream) {
+        const tasks = this.__elements.map(async (e) => await e.Eval(context, context.stream));
         const elems = await Promise.all(tasks);
         return Stream.mkArr(elems);
     }
@@ -720,8 +715,8 @@ class EUnary extends IExpression {
         this.__right = Parser.tryParseExpression(context, parse.tryGetByKey("exp"));
         this.__op = parse.getSingleKey("unary");
     }
-    async Eval(context) {
-        const a = await this.__right.Eval(context);
+    async Eval(context, stream) {
+        const a = await this.__right.Eval(context, context.stream);
         return a.runUnary(this.__op);
     }
 }
@@ -759,12 +754,12 @@ class EOperator extends IExpression {
         // should only be 1 element left
         return stack[0];
     }
-    async Eval(context) {
-        const a = await this.__left.Eval(context);
+    async Eval(context, stream) {
+        const a = await this.__left.Eval(context, context.stream);
         if (this.__op == ":") {
-            return await this.__right.EvalAsMethod(context, a);
+            return await this.__right.Eval(context, a);
         }
-        const b = await this.__right.Eval(context);
+        const b = await this.__right.Eval(context, context.stream);
         return a.runOp(this.__op, b);
     }
     static IsOperator(op) {
@@ -806,8 +801,8 @@ class EFunctionCall extends IExpression {
         this.name = parse.getSingleKey("ident");
         this.params = Parser.tryParseParamList(context, parse);
     }
-    async Eval(context) {
-        return EFunctionCall.runFunc(this.name, this.params, context, context.stream);
+    async Eval(context, stream) {
+        return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
     static async runFunc(name, params, context, stream) {
         let func = _builtInFuncs[name];
@@ -816,9 +811,6 @@ class EFunctionCall extends IExpression {
         if (params.length < func.minP || params.length > func.maxP)
             throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
         return await func.action(context, stream, params);
-    }
-    async EvalAsMethod(context, stream) {
-        return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
 }
 const _builtInFuncs = {};
@@ -841,7 +833,7 @@ regFunc("join", 0, 1, async (c, stream, pars) => {
 regFunc("concat", 1, 1, async (c, stream, pars) => {
     if (!stream.isArray)
         throw "cannot concat stream - expected array";
-    let tail = (await pars[0].Eval(c)).asArray();
+    let tail = (await pars[0].Eval(c, c.stream)).asArray();
     return Stream.mkArr(stream.array.concat(tail));
 });
 regFunc("replace", 2, 2, async (c, stream, pars) => {
@@ -855,14 +847,14 @@ regFunc("piece", 2, 2, async (c, stream, pars) => {
     if (!stream.isText)
         throw "cannot piece stream - expected string";
     const delim = await pars[0].EvalAsText(c);
-    const idx = (await pars[1].Eval(c)).asNum();
+    const idx = (await pars[1].Eval(c, c.stream)).asNum();
     const split = stream.asString().split(delim);
     return Stream.mkText(split[idx - 1]);
 });
 regFunc("at", 1, 1, async (c, stream, pars) => {
     if (!stream.isArray)
         throw "cannot access stream array element - expected array";
-    const idx = (await pars[0].Eval(c)).asNum();
+    const idx = (await pars[0].Eval(c, c.stream)).asNum();
     return stream.asArray()[idx];
 });
 regFunc("contains", 1, 1, async (c, stream, pars) => {
@@ -901,27 +893,27 @@ regFunc("trimEnd", 0, 0, async (c, stream, pars) => {
 regFunc("modulo", 1, 1, async (c, stream, pars) => {
     if (!stream.isNum)
         throw "cannot modulo stream - expected number";
-    const m = (await pars[0].Eval(c)).asNum();
+    const m = (await pars[0].Eval(c, c.stream)).asNum();
     return Stream.mkNum(((stream.num % m) + m) % m);
 });
 regFunc("slice", 1, 2, async (c, stream, pars) => {
     if (!stream.isText && !stream.isArray)
         throw "cannot slice stream - expected string or array";
-    const start = (await pars[0].Eval(c)).asNum();
+    const start = (await pars[0].Eval(c, c.stream)).asNum();
     let end = null;
     if (pars.length > 1)
-        end = (await pars[1].Eval(c)).asNum();
+        end = (await pars[1].Eval(c, c.stream)).asNum();
     if (stream.isText)
         return Stream.mkText(stream.asString().slice(start, end));
     return Stream.mkArr(stream.asArray().slice(start, end));
 });
 regFunc("iif", 2, 3, async (c, stream, pars) => {
-    const test = (await pars[0].Eval(c)).asBool();
+    const test = (await pars[0].Eval(c, c.stream)).asBool();
     if (test) {
-        return await pars[1].Eval(c);
+        return await pars[1].Eval(c, c.stream);
     }
     if (pars.length > 2)
-        return await pars[2].Eval(c);
+        return await pars[2].Eval(c, c.stream);
     return stream;
 });
 regFunc("tryParseNum", 0, 0, async (c, stream, pars) => {
