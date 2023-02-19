@@ -324,26 +324,26 @@ export class Parser {
         let context = new ParseContext();
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
-            let state = this.ParseLine(code, context);
+            let state = this.ParseLine(context, code);
             context.push(state);
         }
         return context.Statements;
     }
-    static ParseLine(code, context) {
+    static ParseLine(context, code) {
         const tokens = Lexer.Tokenize(code);
-        let depth = context.getDepth(tokens.TabDepth);
+        context.currLineDepth = context.getDepth(tokens.TabDepth);
         if (tokens.Tokens.length == 0)
-            return new SNoop(tokens.TabDepth);
-        return this.ParseStatements(tokens.Tokens, depth);
+            return new SNoop(context, tokens.TabDepth);
+        return this.ParseStatements(context, tokens.Tokens);
     }
-    static ParseStatements(tokens, depth) {
+    static ParseStatements(context, tokens) {
         let idx = 0;
         let states = [];
         while (idx < tokens.length) {
             let match = _statements.firstPartialMatch(tokens, idx);
             if (match == null)
                 return null;
-            states.push(match.output(depth, match.result));
+            states.push(match.output(context, match.result));
             idx = match.result.endIndex + 1;
             if (idx < tokens.length && tokens[idx] == ">>")
                 idx++;
@@ -356,17 +356,17 @@ export class Parser {
         else if (states.length == 1)
             result = states[0];
         else
-            result = new SMultiStatement(depth, states);
+            result = new SMultiStatement(context, states);
         return result;
     }
-    static tryParseParamList(parse, key) {
+    static tryParseParamList(context, parse, key) {
         let tokes = parse?.tryGetByKey(key ?? "params");
         if (tokes == null)
             return [];
-        return Parser.tryParseExpressions(tokes.slice(1, -1));
+        return Parser.tryParseExpressions(context, tokes.slice(1, -1));
     }
     // null is valid, but a buggy expresison will throw
-    static tryParseExpressions(tokens) {
+    static tryParseExpressions(context, tokens) {
         let outputs = [];
         let idx = 0;
         let stack = [];
@@ -375,7 +375,7 @@ export class Parser {
             let match = _expressionComps.firstPartialMatch(tokens, idx);
             if (match == null)
                 return null;
-            stack.push(match.output(match.result));
+            stack.push(match.output(context, match.result));
             idx = match.result.endIndex + 1;
             if (idx >= tokens.length || tokens[idx] == ",") {
                 idx++;
@@ -401,8 +401,8 @@ export class Parser {
         }
         return outputs;
     }
-    static tryParseExpression(tokens) {
-        let arr = this.tryParseExpressions(tokens);
+    static tryParseExpression(context, tokens) {
+        let arr = this.tryParseExpressions(context, tokens);
         if (!arr || arr.length != 1)
             return null;
         return arr[0];
@@ -445,31 +445,31 @@ function getBuiltInsSymbols() {
     return list;
 }
 const _statements = new Syntax()
-    .add([token("map")], (dep, res) => new SMap(dep))
-    .add([token("filter")], (dep, res) => new SFilter(dep))
-    .add([token("exit")], (dep, res) => new SExit(dep))
-    .add([token("sortBy")], (dep, res) => new SSortBy(dep))
-    .add([token("sumBy")], (dep, res) => new SSumBy(dep))
-    .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
-    .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res));
+    .add([token("map")], (con, res) => new SMap(con))
+    .add([token("filter")], (con, res) => new SFilter(con))
+    .add([token("exit")], (con, res) => new SExit(con))
+    .add([token("sortBy")], (con, res) => new SSortBy(con))
+    .add([token("sumBy")], (con, res) => new SSumBy(con))
+    .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
+    .add([expressionLike(">>")], (con, res) => new SExpression(con, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
-    .add([identifier(), token("("), token(")")], res => new EFunctionCall(res))
-    .add([identifier(), parameterList(false)], res => new EFunctionCall(res))
+    .add([identifier(), token("("), token(")")], (con, res) => new EFunctionCall(con, res))
+    .add([identifier(), parameterList(false)], (con, res) => new EFunctionCall(con, res))
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
     .add([token("true")], res => new ETrueLiteral())
     .add([token("false")], res => new EFalseLiteral())
-    .add([identifier()], res => new EIdentifier(res))
-    .add([unary(), expressionLike()], res => new EUnary(res))
-    .add([literalNumber()], res => new ENumericLiteral(res))
-    .add([literalString()], res => new EStringLiteral(res))
-    .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
-    .add([token("["), token("]")], res => new EArrayDef(res))
-    .add([token("["), expressionLike(), token("]")], res => new EArrayDef(res));
+    .add([identifier()], (con, res) => new EIdentifier(res))
+    .add([unary(), expressionLike()], (con, res) => new EUnary(con, res))
+    .add([literalNumber()], (con, res) => new ENumericLiteral(res))
+    .add([literalString()], (con, res) => new EStringLiteral(res))
+    .add([token("("), expressionLike(), token(")")], (con, res) => new EExpression(con, res))
+    .add([token("["), token("]")], (con, res) => new EArrayDef(con, res))
+    .add([token("["), expressionLike(), token("]")], (con, res) => new EArrayDef(con, res));
 class IStatement {
-    constructor(depth) {
-        this.tabDepth = depth;
+    constructor(context) {
+        this.tabDepth = context.currLineDepth;
     }
     onOpenChildScope(context) { throw 'statement does not support child scopes'; }
     onCloseChildScope(context, streams) { }
@@ -482,6 +482,8 @@ class IExpression {
         return out.text;
     }
     async EvalAsMethod(context, stream) { throw 'expression is not a method'; }
+}
+class ICanHaveScope extends IExpression {
 }
 function token(match) {
     return Match.token(match);
@@ -517,8 +519,8 @@ function parameterList(optional) {
     token(")")), optional, "params");
 }
 class SMultiStatement extends IStatement {
-    constructor(depth, list) {
-        super(depth);
+    constructor(context, list) {
+        super(context);
         this.__list = list;
     }
     async process(context) {
@@ -529,12 +531,12 @@ class SMultiStatement extends IStatement {
     }
 }
 class SExit extends IStatement {
-    constructor(depth) { super(depth); }
+    constructor(context) { super(context); }
     async process(context) { }
 }
 class SMap extends IStatement {
-    constructor(depth) {
-        super(depth);
+    constructor(context) {
+        super(context);
     }
     async process(context) {
         if (!context.stream.isArray)
@@ -548,8 +550,8 @@ class SMap extends IStatement {
     }
 }
 class SFilter extends IStatement {
-    constructor(depth) {
-        super(depth);
+    constructor(context) {
+        super(context);
     }
     async process(context) {
         if (!context.stream.isArray)
@@ -565,8 +567,8 @@ class SFilter extends IStatement {
     }
 }
 class SSortBy extends IStatement {
-    constructor(depth) {
-        super(depth);
+    constructor(context) {
+        super(context);
     }
     async process(context) {
         if (!context.stream.isArray)
@@ -586,8 +588,8 @@ class SSortBy extends IStatement {
     }
 }
 class SSumBy extends IStatement {
-    constructor(depth) {
-        super(depth);
+    constructor(context) {
+        super(context);
     }
     async process(context) {
         if (!context.stream.isArray)
@@ -605,10 +607,10 @@ class SSumBy extends IStatement {
     }
 }
 class SStoreLocal extends IStatement {
-    constructor(depth, parse) {
-        super(depth);
+    constructor(context, parse) {
+        super(context);
         this.__ident = parse.getSingleKey("ident");
-        this.__exp = Parser.tryParseExpression(parse.tryGetByKey("any"));
+        this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
     }
     async process(context) {
         const result = await this.__exp.Eval(context);
@@ -616,9 +618,9 @@ class SStoreLocal extends IStatement {
     }
 }
 class SExpression extends IStatement {
-    constructor(depth, parse) {
-        super(depth);
-        this.__exp = Parser.tryParseExpression(parse.GetSlice());
+    constructor(context, parse) {
+        super(context);
+        this.__exp = Parser.tryParseExpression(context, parse.GetSlice());
     }
     async process(context) {
         const result = await this.__exp.Eval(context);
@@ -626,7 +628,7 @@ class SExpression extends IStatement {
     }
 }
 class SNoop extends IStatement {
-    constructor(depth) { super(depth); }
+    constructor(context) { super(context); }
     async process(context) { }
 }
 class EIdentifier extends IExpression {
@@ -688,23 +690,23 @@ class EStringLiteral extends IExpression {
     }
 }
 class EExpression extends IExpression {
-    constructor(parse) {
+    constructor(context, parse) {
         super();
         let tokes = parse.tryGetByKey("exp");
-        this.__inner = Parser.tryParseExpression(tokes);
+        this.__inner = Parser.tryParseExpression(context, tokes);
     }
     async Eval(context) {
         return this.__inner.Eval(context);
     }
 }
 class EArrayDef extends IExpression {
-    constructor(parse) {
+    constructor(context, parse) {
         super();
         let tokes = parse.tryGetByKey("exp");
         if (tokes == null)
             this.__elements = []; // the [] case
         else
-            this.__elements = Parser.tryParseExpressions(tokes);
+            this.__elements = Parser.tryParseExpressions(context, tokes);
     }
     async Eval(context) {
         const tasks = this.__elements.map(async (e) => await e.Eval(context));
@@ -713,9 +715,9 @@ class EArrayDef extends IExpression {
     }
 }
 class EUnary extends IExpression {
-    constructor(parse) {
+    constructor(context, parse) {
         super();
-        this.__right = Parser.tryParseExpression(parse.tryGetByKey("exp"));
+        this.__right = Parser.tryParseExpression(context, parse.tryGetByKey("exp"));
         this.__op = parse.getSingleKey("unary");
     }
     async Eval(context) {
@@ -799,10 +801,10 @@ class EOperator extends IExpression {
     }
 }
 class EFunctionCall extends IExpression {
-    constructor(parse) {
+    constructor(context, parse) {
         super();
         this.name = parse.getSingleKey("ident");
-        this.params = Parser.tryParseParamList(parse);
+        this.params = Parser.tryParseParamList(context, parse);
     }
     async Eval(context) {
         return EFunctionCall.runFunc(this.name, this.params, context, context.stream);

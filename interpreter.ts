@@ -324,26 +324,26 @@ export class Parser{
         let context = new ParseContext();
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
-            let state = this.ParseLine(code, context);
+            let state = this.ParseLine(context, code);
             context.push(state);
         }
         return context.Statements;
     }
     
-    public static ParseLine(code: string, context: ParseContext): IStatement{
+    public static ParseLine(context: ParseContext, code: string): IStatement{
         const tokens = Lexer.Tokenize(code);
-        let depth = context.getDepth(tokens.TabDepth);
-        if(tokens.Tokens.length == 0) return new SNoop(tokens.TabDepth);
-        return this.ParseStatements(tokens.Tokens, depth);
+        context.currLineDepth = context.getDepth(tokens.TabDepth);
+        if(tokens.Tokens.length == 0) return new SNoop(context, tokens.TabDepth);
+        return this.ParseStatements(context, tokens.Tokens);
     }
 
-    public static ParseStatements(tokens:string[], depth: number): IStatement{
+    public static ParseStatements(context: ParseContext, tokens:string[]): IStatement{
         let idx = 0;
         let states: IStatement[] = [];
         while(idx < tokens.length){
             let match = _statements.firstPartialMatch(tokens, idx);
             if(match == null) return null;
-            states.push(match.output(depth, match.result));
+            states.push(match.output(context, match.result));
             idx = match.result.endIndex + 1;
             if(idx < tokens.length && tokens[idx] == ">>") idx++;
             else if(idx < tokens.length) return null;
@@ -351,18 +351,18 @@ export class Parser{
         let result: IStatement;
         if(states.length == 0) result = null;
         else if(states.length == 1) result = states[0];
-        else result = new SMultiStatement(depth, states);
+        else result = new SMultiStatement(context, states);
         return result;
     }
 
-    public static tryParseParamList(parse: PatternResult<string>, key?: string): IExpression[] | null{
+    public static tryParseParamList(context: ParseContext, parse: PatternResult<string>, key?: string): IExpression[] | null{
         let tokes = parse?.tryGetByKey(key ?? "params");
         if(tokes == null) return [];
-        return Parser.tryParseExpressions(tokes.slice(1, -1));
+        return Parser.tryParseExpressions(context, tokes.slice(1, -1));
     }
 
     // null is valid, but a buggy expresison will throw
-    public static tryParseExpressions(tokens: string[]): IExpression[]{
+    public static tryParseExpressions(context: ParseContext, tokens: string[]): IExpression[]{
         let outputs: IExpression[] = [];
         let idx = 0;
         let stack: IExpression[] = [];
@@ -370,7 +370,7 @@ export class Parser{
         while(true){
             let match = _expressionComps.firstPartialMatch(tokens, idx);
             if(match == null) return null;
-            stack.push(match.output(match.result));
+            stack.push(match.output(context, match.result));
             idx = match.result.endIndex + 1;
             if(idx >= tokens.length || tokens[idx] == ",") {
                 idx++;
@@ -393,8 +393,8 @@ export class Parser{
         }
         return outputs;
     }
-    public static tryParseExpression(tokens: string[]): IExpression{
-        let arr = this.tryParseExpressions(tokens);
+    public static tryParseExpression(context: ParseContext,tokens: string[]): IExpression{
+        let arr = this.tryParseExpressions(context, tokens);
         if(!arr || arr.length != 1) return null;
         return arr[0];
     }
@@ -402,6 +402,7 @@ export class Parser{
 
 class ParseContext{
     public Statements: IStatement[] = [];
+    public currLineDepth: number;
     public push(statement: IStatement){
         this.Statements.push(statement);
     }
@@ -433,39 +434,39 @@ function getBuiltInsSymbols(): string[]{
     return list;
 }
 
-type StatementGenerator = (depth: number, result: PatternResult<string>) => IStatement;
+type StatementGenerator = (con: ParseContext, result: PatternResult<string>) => IStatement;
 const _statements = new Syntax<string, StatementGenerator>()
-    .add([token("map")], (dep, res) => new SMap(dep))
-    .add([token("filter")], (dep, res) => new SFilter(dep))
-    .add([token("exit")], (dep, res) => new SExit(dep))
-    .add([token("sortBy")], (dep, res) => new SSortBy(dep))
-    .add([token("sumBy")], (dep, res) => new SSumBy(dep))
-    .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
-    .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
+    .add([token("map")], (con, res) => new SMap(con))
+    .add([token("filter")], (con, res) => new SFilter(con))
+    .add([token("exit")], (con, res) => new SExit(con))
+    .add([token("sortBy")], (con, res) => new SSortBy(con))
+    .add([token("sumBy")], (con, res) => new SSumBy(con))
+    .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
+    .add([expressionLike(">>")], (con, res) => new SExpression(con, res))
 ;
 
-type ExpressionGenerator = (result: PatternResult<string>) => IExpression;
+type ExpressionGenerator = (context: ParseContext, result: PatternResult<string>) => IExpression;
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax<string, ExpressionGenerator>()
-    .add([identifier(), token("("), token(")")],res => new EFunctionCall(res))
-    .add([identifier(), parameterList(false)],res => new EFunctionCall(res))
+    .add([identifier(), token("("), token(")")], (con,res) => new EFunctionCall(con, res))
+    .add([identifier(), parameterList(false)],(con,res) => new EFunctionCall(con, res))
     .add([token("stream")], res => new EStream())
     .add([token("index")], res => new EIndex())
     .add([token("true")], res => new ETrueLiteral())
     .add([token("false")], res => new EFalseLiteral())
-    .add([identifier()],res => new EIdentifier(res))
-    .add([unary(), expressionLike()], res => new EUnary(res))
-    .add([literalNumber()], res => new ENumericLiteral(res))
-    .add([literalString()], res => new EStringLiteral(res))
-    .add([token("("), expressionLike(), token(")")], res => new EExpression(res))
-    .add([token("["), token("]")], res => new EArrayDef(res))
-    .add([token("["), expressionLike(), token("]")], res => new EArrayDef(res))
+    .add([identifier()],(con,res) => new EIdentifier(res))
+    .add([unary(), expressionLike()], (con,res) => new EUnary(con, res))
+    .add([literalNumber()], (con,res) => new ENumericLiteral(res))
+    .add([literalString()], (con,res) => new EStringLiteral(res))
+    .add([token("("), expressionLike(), token(")")], (con,res) => new EExpression(con, res))
+    .add([token("["), token("]")], (con,res) => new EArrayDef(con, res))
+    .add([token("["), expressionLike(), token("]")], (con,res) => new EArrayDef(con, res))
 ;
 
 abstract class IStatement{
     tabDepth: number;
-    public constructor(depth: number){
-        this.tabDepth = depth;
+    public constructor(context: ParseContext){
+        this.tabDepth = context.currLineDepth;
     }
     public abstract process(context: ExecutionContext):Promise<void>;
     public onOpenChildScope(context: ExecutionContext):Stream[] { throw 'statement does not support child scopes'; }
@@ -480,6 +481,10 @@ abstract class IExpression{
         return out.text;
     }
     public async EvalAsMethod(context: ExecutionContext, stream: Stream): Promise<Stream> {throw 'expression is not a method';}
+}
+abstract class ICanHaveScope extends IExpression{
+    public abstract onOpenChildScope(context: ExecutionContext):Stream[];
+    public abstract onCloseChildScope(context: ExecutionContext, streams: Stream[]);
 }
 
 function token(match: string):SingleMatch<string> {
@@ -521,8 +526,8 @@ function parameterList(optional?: boolean): SingleMatch<string>{
 
 class SMultiStatement extends IStatement{
     __list : IStatement[];
-    public constructor(depth: number, list: IStatement[]){
-        super(depth);
+    public constructor(context: ParseContext, list: IStatement[]){
+        super(context);
         this.__list = list;
     }
     public override async process(context: ExecutionContext): Promise<void> {
@@ -534,13 +539,13 @@ class SMultiStatement extends IStatement{
 }
 
 class SExit extends IStatement{
-    public constructor(depth: number){super(depth); }
+    public constructor(context: ParseContext){super(context); }
     public override async process(context: ExecutionContext): Promise<void> {}
 }
 
 class SMap extends IStatement{
-    public constructor(depth: number){
-        super(depth);
+    public constructor(context: ParseContext){
+        super(context);
     }
     public async process(context: ExecutionContext): Promise<void> {
         if(!context.stream.isArray) throw 'map function expected to process an array';
@@ -554,8 +559,8 @@ class SMap extends IStatement{
 }
 
 class SFilter extends IStatement{
-    public constructor(depth: number){
-        super(depth);
+    public constructor(context: ParseContext){
+        super(context);
     }
     public async process(context: ExecutionContext): Promise<void> {
         if(!context.stream.isArray) throw 'filter function expected to process an array';
@@ -571,8 +576,8 @@ class SFilter extends IStatement{
 }
 
 class SSortBy extends IStatement{
-    public constructor(depth: number){
-        super(depth);
+    public constructor(context: ParseContext){
+        super(context);
     }
     public async process(context: ExecutionContext): Promise<void> {
         if(!context.stream.isArray) throw 'sortBy command expected to process an array';
@@ -592,8 +597,8 @@ class SSortBy extends IStatement{
 }
 
 class SSumBy extends IStatement{
-    public constructor(depth: number){
-        super(depth);
+    public constructor(context: ParseContext){
+        super(context);
     }
     public async process(context: ExecutionContext): Promise<void> {
         if(!context.stream.isArray) throw 'sumBy command expected to process an array';
@@ -613,10 +618,10 @@ class SSumBy extends IStatement{
 class SStoreLocal extends IStatement{
     __ident: string;
     __exp: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
+    public constructor(context: ParseContext, parse: PatternResult<string>){
+        super(context);
         this.__ident = parse.getSingleKey("ident");
-        this.__exp = Parser.tryParseExpression(parse.tryGetByKey("any"));
+        this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
     }
     public async process(context: ExecutionContext): Promise<void> {
         const result = await this.__exp.Eval(context);
@@ -626,9 +631,9 @@ class SStoreLocal extends IStatement{
 
 class SExpression extends IStatement{
     __exp: IExpression;
-    public constructor(depth: number, parse: PatternResult<string>){
-        super(depth);
-        this.__exp = Parser.tryParseExpression(parse.GetSlice());
+    public constructor(context: ParseContext, parse: PatternResult<string>){
+        super(context);
+        this.__exp = Parser.tryParseExpression(context, parse.GetSlice());
     }
     public async process(context: ExecutionContext): Promise<void> {
         const result = await this.__exp.Eval(context);
@@ -637,7 +642,7 @@ class SExpression extends IStatement{
 }
 
 class SNoop extends IStatement{
-    public constructor(depth: number){super(depth);}
+    public constructor(context: ParseContext){super(context);}
     public async process(context: ExecutionContext): Promise<void> {}
 }
 
@@ -711,10 +716,10 @@ class EStringLiteral extends IExpression{
 
 class EExpression extends IExpression{
     __inner : IExpression;
-    public constructor(parse: PatternResult<string>){
+    public constructor(context: ParseContext, parse: PatternResult<string>){
         super();
         let tokes = parse.tryGetByKey("exp");
-        this.__inner = Parser.tryParseExpression(tokes);
+        this.__inner = Parser.tryParseExpression(context, tokes);
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
         return this.__inner.Eval(context);
@@ -723,11 +728,11 @@ class EExpression extends IExpression{
 
 class EArrayDef extends IExpression{
     __elements : IExpression[];
-    public constructor(parse: PatternResult<string>){
+    public constructor(context: ParseContext, parse: PatternResult<string>){
         super();
         let tokes = parse.tryGetByKey("exp");
         if(tokes == null) this.__elements = []; // the [] case
-        else this.__elements = Parser.tryParseExpressions(tokes);
+        else this.__elements = Parser.tryParseExpressions(context, tokes);
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
         const tasks = this.__elements.map(async e => await e.Eval(context));
@@ -740,9 +745,9 @@ class EUnary extends IExpression{
     __right: IExpression;
     __op: string;
 
-    public constructor(parse: PatternResult<string>){
+    public constructor(context: ParseContext, parse: PatternResult<string>){
         super();
-        this.__right = Parser.tryParseExpression(parse.tryGetByKey("exp"));
+        this.__right = Parser.tryParseExpression(context, parse.tryGetByKey("exp"));
         this.__op = parse.getSingleKey("unary");
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
@@ -829,10 +834,10 @@ class EOperator extends IExpression{
 class EFunctionCall extends IExpression{
     name: string;
     params: IExpression[];
-    public constructor(parse: PatternResult<string>){
+    public constructor(context: ParseContext, parse: PatternResult<string>){
         super();
         this.name = parse.getSingleKey("ident");
-        this.params = Parser.tryParseParamList(parse);
+        this.params = Parser.tryParseParamList(context, parse);
     }
     public async Eval(context: ExecutionContext): Promise<Stream> {
         return EFunctionCall.runFunc(this.name, this.params, context, context.stream);
