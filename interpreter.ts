@@ -429,7 +429,7 @@ class ParseContext{
 
 function getBuiltInsSymbols(): string[]{
     var list: string[] = Object.keys(_builtInFuncs);
-    list.push("map", "filter", "sortBy", "exit", "stream", "index", "true", "false");
+    list.push("map", "filter", "sortBy", "sumBy", "exit", "stream", "index", "true", "false");
     return list;
 }
 
@@ -439,6 +439,7 @@ const _statements = new Syntax<string, StatementGenerator>()
     .add([token("filter")], (dep, res) => new SFilter(dep))
     .add([token("exit")], (dep, res) => new SExit(dep))
     .add([token("sortBy")], (dep, res) => new SSortBy(dep))
+    .add([token("sumBy")], (dep, res) => new SSumBy(dep))
     .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res))
 ;
@@ -587,6 +588,25 @@ class SSortBy extends IStatement{
         });
         const sorted = idxes.map(i => prev[i]);
         context.updateStream(Stream.mkArr(sorted));
+    }
+}
+
+class SSumBy extends IStatement{
+    public constructor(depth: number){
+        super(depth);
+    }
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isArray) throw 'sumBy command expected to process an array';
+    }
+    public onOpenChildScope(context: ExecutionContext):Stream[]{
+        return context.stream.asArray().slice();
+    }
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]){
+        let total = 0;
+        for (const node of streams) {
+            total += node.asNum();
+        }
+        context.updateStream(Stream.mkNum(total));
     }
 }
 

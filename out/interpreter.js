@@ -441,7 +441,7 @@ class ParseContext {
 }
 function getBuiltInsSymbols() {
     var list = Object.keys(_builtInFuncs);
-    list.push("map", "filter", "sortBy", "exit", "stream", "index", "true", "false");
+    list.push("map", "filter", "sortBy", "sumBy", "exit", "stream", "index", "true", "false");
     return list;
 }
 const _statements = new Syntax()
@@ -449,6 +449,7 @@ const _statements = new Syntax()
     .add([token("filter")], (dep, res) => new SFilter(dep))
     .add([token("exit")], (dep, res) => new SExit(dep))
     .add([token("sortBy")], (dep, res) => new SSortBy(dep))
+    .add([token("sumBy")], (dep, res) => new SSumBy(dep))
     .add([identifier(), token("<<"), Match.anything()], (dep, res) => new SStoreLocal(dep, res))
     .add([expressionLike(">>")], (dep, res) => new SExpression(dep, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
@@ -582,6 +583,25 @@ class SSortBy extends IStatement {
         });
         const sorted = idxes.map(i => prev[i]);
         context.updateStream(Stream.mkArr(sorted));
+    }
+}
+class SSumBy extends IStatement {
+    constructor(depth) {
+        super(depth);
+    }
+    async process(context) {
+        if (!context.stream.isArray)
+            throw 'sumBy command expected to process an array';
+    }
+    onOpenChildScope(context) {
+        return context.stream.asArray().slice();
+    }
+    onCloseChildScope(context, streams) {
+        let total = 0;
+        for (const node of streams) {
+            total += node.asNum();
+        }
+        context.updateStream(Stream.mkNum(total));
     }
 }
 class SStoreLocal extends IStatement {
