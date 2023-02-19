@@ -144,11 +144,14 @@ export class Workspace {
         txtName.type = 'text';
         txtName.value = script.Name;
         txtName.addEventListener('change', () => {
-            script.Name = txtName.value;
+            var txt = txtName.value;
+            script.Name = (txt == "") ? "???" : txt;
             lbl.innerText = script.Name;
             script.Save();
-        }
-        );
+        });
+        txtName.addEventListener('keyup', e => {
+            if(e.key === 'Enter' || e.key == 'Escape') { this._txtEditor.rawTextArea.focus(); }
+        });
         txtName.addEventListener('blur', () => {
             tab.classList.remove('editing');
         })
@@ -156,6 +159,7 @@ export class Workspace {
             if(script == this._selectedScript){
                 tab.classList.toggle('editing');
                 txtName.focus();
+                txtName.select();
             }
             else {
                 this.switchToTab(script);
