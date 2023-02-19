@@ -62,7 +62,7 @@ export module Match{
     // test increasingly long sequences - not efficient
     export function testSequence<T>(matcher: (tokes: T[]) => boolean | null, optional?: boolean, key?: string):SingleMatch<T>{
         return {
-            Optional: false,
+            Optional: optional,
             Handler: (t,b) =>{
                 let index = 0;
                 for (; index + b < t.length; index++) {
@@ -71,6 +71,16 @@ export module Match{
                 }
                 if(matcher(t.slice(b, b + index)) !== true) { index = 0; }
                 return result(index > 0, b, index, key ?? "tseq");
+            },
+        };
+    }
+
+    export function testRemainder<T>(matcher: (tokes: T[]) => boolean | null, optional?: boolean, key?: string):SingleMatch<T>{
+        return {
+            Optional: optional,
+            Handler: (t,b) =>{
+                let slice = t.slice(b);
+                return result(matcher(slice), b, slice.length, key ?? "trem");
             },
         };
     }
@@ -183,6 +193,12 @@ export class Syntax<T,V>{
     maps: PatternMap<T,V>[];
     public constructor(maps?: PatternMap<T,V>[]){
         this.maps = maps ?? [];
+    }
+    public addMulti(source: Syntax<T,V>): Syntax<T,V>{
+        for (const pat of source.maps) {
+            this.maps.push(pat);
+        }
+        return this;
     }
     public add(matches: SingleMatch<T>[], out:V): Syntax<T,V>{
         this.maps.push( {

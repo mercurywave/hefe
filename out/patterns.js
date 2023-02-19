@@ -65,7 +65,7 @@ export var Match;
     // test increasingly long sequences - not efficient
     function testSequence(matcher, optional, key) {
         return {
-            Optional: false,
+            Optional: optional,
             Handler: (t, b) => {
                 let index = 0;
                 for (; index + b < t.length; index++) {
@@ -82,6 +82,16 @@ export var Match;
         };
     }
     Match.testSequence = testSequence;
+    function testRemainder(matcher, optional, key) {
+        return {
+            Optional: optional,
+            Handler: (t, b) => {
+                let slice = t.slice(b);
+                return result(matcher(slice), b, slice.length, key ?? "trem");
+            },
+        };
+    }
+    Match.testRemainder = testRemainder;
     function testPattern(pattern, optional, key) {
         return {
             Optional: optional,
@@ -168,6 +178,12 @@ export class PatternResult {
 export class Syntax {
     constructor(maps) {
         this.maps = maps ?? [];
+    }
+    addMulti(source) {
+        for (const pat of source.maps) {
+            this.maps.push(pat);
+        }
+        return this;
     }
     add(matches, out) {
         this.maps.push({

@@ -92,6 +92,8 @@ export class InterpreterState {
         }
     }
     pushStack(state) {
+        if (!(state instanceof ICanHaveScope))
+            throw 'inner scope is unexpected';
         this.foreachChain((chain, leaf) => {
             const context = new ExecutionContext(chain, this);
             const streams = state.onOpenChildScope(context);
@@ -105,7 +107,8 @@ export class InterpreterState {
         this.foreachChain((chain, leaf) => {
             const context = new ExecutionContext(chain, this);
             const branches = leaf.branches.map(b => b.stream);
-            owner.onCloseChildScope(context, branches);
+            let result = owner.onCloseChildScope(context, branches);
+            context.updateStream(result);
             leaf.branches = null;
         });
     }
@@ -444,12 +447,15 @@ function getBuiltInsSymbols() {
     list.push("map", "filter", "sortBy", "sumBy", "exit", "stream", "index", "true", "false");
     return list;
 }
-const _statements = new Syntax()
-    .add([token("map")], (con, res) => new SMap(con))
-    .add([token("filter")], (con, res) => new SFilter(con))
-    .add([token("exit")], (con, res) => new SExit(con))
+const _scopeStatements = new Syntax()
     .add([token("sortBy")], (con, res) => new SSortBy(con))
     .add([token("sumBy")], (con, res) => new SSumBy(con))
+    .add([token("map")], (con, res) => new SMap(con))
+    .add([token("filter")], (con, res) => new SFilter(con));
+const _statements = new Syntax()
+    .addMulti(_scopeStatements)
+    .add([token("exit")], (con, res) => new SExit(con))
+    .add([identifier(), token("<<"), scopeStatementLike()], (con, res) => new SStoreLocalScoped(con, res))
     .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
     .add([expressionLike(">>")], (con, res) => new SExpression(con, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
@@ -471,8 +477,8 @@ class IStatement {
     constructor(context) {
         this.tabDepth = context.currLineDepth;
     }
-    onOpenChildScope(context) { throw 'statement does not support child scopes'; }
-    onCloseChildScope(context, streams) { }
+}
+class ICanHaveScope extends IStatement {
 }
 class IExpression {
     async EvalAsText(context) {
@@ -481,8 +487,6 @@ class IExpression {
             throw 'expected expression to evaluate as string, got ' + out.toDisplayText();
         return out.text;
     }
-}
-class ICanHaveScope extends IExpression {
 }
 function token(match) {
     return Match.token(match);
@@ -498,6 +502,12 @@ function literalNumber() {
 }
 function literalString() {
     return Match.testToken(t => t[0] === "\""); // shouldn't have lexed anything else with a leading "
+}
+function scopeStatementLike() {
+    return Match.testRemainder(t => {
+        let test = _scopeStatements.firstPartialMatch(t, 0);
+        return test?.result.length == t.length;
+    }, false, "statement");
 }
 function expressionLike(stop, optional) {
     return Match.testSequence(tokes => {
@@ -533,7 +543,7 @@ class SExit extends IStatement {
     constructor(context) { super(context); }
     async process(context) { }
 }
-class SMap extends IStatement {
+class SMap extends ICanHaveScope {
     constructor(context) {
         super(context);
     }
@@ -545,10 +555,10 @@ class SMap extends IStatement {
         return context.stream.asArray().slice();
     }
     onCloseChildScope(context, streams) {
-        context.updateStream(Stream.mkArr(streams));
+        return Stream.mkArr(streams);
     }
 }
-class SFilter extends IStatement {
+class SFilter extends ICanHaveScope {
     constructor(context) {
         super(context);
     }
@@ -562,10 +572,10 @@ class SFilter extends IStatement {
     onCloseChildScope(context, streams) {
         const prev = context.stream.asArray();
         const filtered = prev.filter((v, i) => streams[i].asBool());
-        context.updateStream(Stream.mkArr(filtered));
+        return Stream.mkArr(filtered);
     }
 }
-class SSortBy extends IStatement {
+class SSortBy extends ICanHaveScope {
     constructor(context) {
         super(context);
     }
@@ -583,10 +593,10 @@ class SSortBy extends IStatement {
             return Stream.Compare(streams[a], streams[b]);
         });
         const sorted = idxes.map(i => prev[i]);
-        context.updateStream(Stream.mkArr(sorted));
+        return Stream.mkArr(sorted);
     }
 }
-class SSumBy extends IStatement {
+class SSumBy extends ICanHaveScope {
     constructor(context) {
         super(context);
     }
@@ -602,7 +612,7 @@ class SSumBy extends IStatement {
         for (const node of streams) {
             total += node.asNum();
         }
-        context.updateStream(Stream.mkNum(total));
+        return Stream.mkNum(total);
     }
 }
 class SStoreLocal extends IStatement {
@@ -614,6 +624,25 @@ class SStoreLocal extends IStatement {
     async process(context) {
         const result = await this.__exp.Eval(context, context.stream);
         context.saveVar(this.__ident, result);
+    }
+}
+class SStoreLocalScoped extends ICanHaveScope {
+    constructor(context, parse) {
+        super(context);
+        this.__ident = parse.getSingleKey("ident");
+        this._state = Parser.ParseStatements(context, parse.tryGetByKey("statement"));
+    }
+    async process(context) {
+        context.saveVar(this.__ident, new Stream()); // in case you don't actually open a scope?
+        this._state.process(context);
+    }
+    onOpenChildScope(context) {
+        return this._state.onOpenChildScope(context);
+    }
+    onCloseChildScope(context, streams) {
+        let result = this._state.onCloseChildScope(context, streams);
+        context.saveVar(this.__ident, result);
+        return context.stream;
     }
 }
 class SExpression extends IStatement {
