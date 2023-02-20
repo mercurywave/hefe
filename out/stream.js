@@ -4,25 +4,32 @@ export var eStreamType;
     eStreamType[eStreamType["Num"] = 1] = "Num";
     eStreamType[eStreamType["Bool"] = 2] = "Bool";
     eStreamType[eStreamType["Array"] = 3] = "Array";
+    eStreamType[eStreamType["Map"] = 4] = "Map";
 })(eStreamType || (eStreamType = {}));
 export class Stream {
-    constructor(text, array, num, bool) {
+    constructor(text, array, num, bool, map) {
         this.text = text ?? null;
         this.array = array ?? null;
         this.num = num ?? null;
         this.bool = bool ?? null;
+        this.map = map ?? null;
     }
     static mkText(text) { return new Stream(text); }
     static mkArr(arr) { return new Stream(null, arr); }
     static mkNum(num) { return new Stream(null, null, num); }
     static mkBool(bool) { return new Stream(null, null, null, bool); }
+    static mkMap(map) { return new Stream(null, null, null, null, map); }
     copy() {
-        return new Stream(this.text, this.array?.slice(), this.num, this.bool);
+        return new Stream(this.text, this.array?.slice(), this.num, this.bool, this.map);
     }
     toDisplayText(nested) {
+        nested ??= 0;
+        const next = nested + 1;
+        const indent = "".padStart(nested, " ");
+        const subIndent = indent + " ";
         if (this.isText) {
             if (nested > 0)
-                return "\"" + this.text + "\"";
+                return "\"" + this.text.replaceAll("\n", "\n" + indent) + "\"";
             return this.text;
         }
         if (this.isNum)
@@ -30,7 +37,15 @@ export class Stream {
         if (this.isBool)
             return "" + this.bool;
         if (this.isArray)
-            return "[\n" + this.array.map(s => " " + s.toDisplayText((nested ?? 0) + 1)).join(",\n") + "\n]";
+            return "[\n" + this.array.map(s => subIndent + s.toDisplayText(next)).join(",\n") + "\n" + indent + "]";
+        if (this.isMap) {
+            let arr = [];
+            for (let pair of this.map.entries()) {
+                let key = (typeof pair[0] === 'string') ? '"' + pair[0] + '"' : pair[0];
+                arr.push(indent + key + " : " + pair[1].toDisplayText(next));
+            }
+            return '{\n' + subIndent + arr.join(",\n" + subIndent) + "\n" + indent + "}";
+        }
         return "???";
     }
     static areEqual(a, b) {
@@ -42,6 +57,8 @@ export class Stream {
             return a.bool === b.bool;
         if (a.array != null)
             throw 'array comparison not implemented';
+        if (a.map != null)
+            throw 'map comparison not implemented';
         throw "couldn't compare null object?";
     }
     static areSameType(a, b) {
@@ -56,6 +73,8 @@ export class Stream {
             return eStreamType.Bool;
         if (this.array !== null)
             return eStreamType.Array;
+        if (this.map !== null)
+            return eStreamType.Map;
         throw 'unknown type';
     }
     canCastTo(type) {
@@ -64,6 +83,7 @@ export class Stream {
             case eStreamType.Bool: return [eStreamType.Bool, eStreamType.Num].includes(type);
             case eStreamType.Num: return [eStreamType.Num].includes(type);
             case eStreamType.Text: return [eStreamType.Text, eStreamType.Num, eStreamType.Bool].includes(type);
+            case eStreamType.Map: return [eStreamType.Map].includes(type);
             default: throw 'type not implemented for canCast';
         }
     }
@@ -100,7 +120,27 @@ export class Stream {
         }
     }
     toRaw() {
-        return this.text ?? this.num ?? this.bool ?? this.array;
+        return this.text ?? this.num ?? this.bool ?? this.array ?? this.map;
+    }
+    toKey() {
+        if (this.isNum || this.isText || this.isBool)
+            return this.num ?? this.text ?? this.bool;
+        throw 'stream is not a valid key for mapping';
+    }
+    static fromRaw(val) {
+        switch (typeof val) {
+            case "string": return this.mkText(val);
+            case "number": return this.mkNum(val);
+            case "boolean": return this.mkBool(val);
+            default:
+                if (val == null)
+                    throw 'did not expect null stream';
+                if (Array.isArray(val))
+                    return this.mkArr(val);
+                if (val instanceof Map)
+                    return this.mkMap(val);
+                throw `could not create stream from ${val}`;
+        }
     }
     asNum() {
         if (this.num !== null)
@@ -128,10 +168,16 @@ export class Stream {
             return this.array; // caution! original reference!
         throw 'cannot cast to array';
     }
+    asMap() {
+        if (this.isMap)
+            return this.map;
+        throw 'cannot cast to map';
+    }
     get isNum() { return this.num !== null; }
     get isText() { return this.text !== null; }
     get isBool() { return this.bool !== null; }
     get isArray() { return this.array !== null; }
+    get isMap() { return this.map !== null; }
     static Compare(a, b) {
         if (a === b)
             return 0;
@@ -157,6 +203,9 @@ export class Stream {
                 return -1;
             return 0;
         }
+        if (a.isMap || b.isMap) {
+            throw 'cannot compare map objects';
+        }
         if (a.isNum)
             return 1;
         if (b.isNum)
@@ -169,7 +218,7 @@ export class Stream {
             return 1;
         if (b.isBool)
             return -1;
-        throw 'unreachable comparison reached';
+        throw `could not compare objects of types ${a.type} and ${b.type}`;
     }
 }
 //# sourceMappingURL=stream.js.map

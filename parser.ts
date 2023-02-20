@@ -1,7 +1,7 @@
 import { ExecutionContext } from "./interpreter.js";
 import { Lexer } from "./Lexer.js";
 import { Match, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
-import { Stream } from "./stream.js";
+import { IKey, Stream } from "./stream.js";
 
 export class Parser{
     public static Parse(code: string): IStatement[]{
@@ -86,7 +86,7 @@ export class Parser{
 
     public static getBuiltInsSymbols(): string[]{
         var list: string[] = Object.keys(_builtInFuncs);
-        list.push("map", "filter", "sortBy", "sumBy", "exit", "stream", "index", "true", "false");
+        list.push(... _keywordStatements);
         return list;
     }
 }
@@ -119,13 +119,16 @@ class ParseContext{
     }
 }
 
-
+const _keywordStatements = ["map", "filter",
+        "sortBy", "sumBy", "exit", "stream",
+        "index", "true", "false", "pivot"];
 type StatementGenerator = (con: ParseContext, result: PatternResult<string>) => IStatement;
 const _scopeStatements = new Syntax<string, StatementGenerator>()
     .add([token("sortBy")], (con, res) => new SSortBy(con))
     .add([token("sumBy")], (con, res) => new SSumBy(con))
     .add([token("map")], (con, res) => new SMap(con))
     .add([token("filter")], (con, res) => new SFilter(con))
+    .add([token("pivot")], (con, res) => new SPivot(con))
 ;
 const _statements = new Syntax<string, StatementGenerator>()
     .addMulti(_scopeStatements)
@@ -249,6 +252,33 @@ class SMap extends ICanHaveScope{
     }
     public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
         return Stream.mkArr(streams);
+    }
+}
+
+class SPivot extends ICanHaveScope{
+    public constructor(context: ParseContext){
+        super(context);
+    }
+    public async process(context: ExecutionContext): Promise<void> {
+        if(!context.stream.isArray) throw 'map function expected to process an array';
+    }
+    public onOpenChildScope(context: ExecutionContext):Stream[]{
+        return context.stream.asArray().slice();
+    }
+    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
+        const prev = context.stream.asArray();
+        let rawmap = new Map<IKey, Stream[]>();
+        let map = new Map<IKey, Stream>();
+        for (let i = 0; i < prev.length; i++) {
+            const key = streams[i].toKey();
+            const val = prev[i];
+            if(!rawmap.has(key)) rawmap.set(key, []);
+            rawmap.get(key).push(val);
+        }
+        for (const key of rawmap.keys()) {
+            map.set(key, Stream.mkArr(rawmap.get(key)));
+        }
+        return Stream.mkMap(map);
     }
 }
 
@@ -602,9 +632,13 @@ regFunc("piece", 2, 2, async (c, stream, pars) =>{
 });
 
 regFunc("at", 1, 1, async (c, stream, pars) =>{
+    const idx = (await pars[0].Eval(c, c.stream));
+    if(stream.isMap) {
+        const key = idx.toKey();
+        return stream.asMap().get(key) ?? new Stream();
+    }
     if(!stream.isArray) throw "cannot access stream array element - expected array";
-    const idx = (await pars[0].Eval(c, c.stream)).asNum();
-    return stream.asArray()[idx];
+    return stream.asArray()[idx.asNum()];
 });
 
 regFunc("length", 0, 0, async (c, stream, pars) => {
@@ -672,6 +706,21 @@ regFunc("tryParseNum", 0, 0, async (c, stream, pars) =>{
     const flo = parseFloat(text);
     if (isNaN(flo)) return stream;
     return Stream.mkNum(flo);
+});
+
+regFunc("keys", 0, 0, async (c, stream, pars) => {
+    if(stream.isMap){
+        let arr : Stream[] = [];
+        for(let key of stream.asMap().keys()){
+            arr.push(Stream.fromRaw(key));
+        }
+        return Stream.mkArr(arr);
+    }
+    else if(stream.isArray){
+        let arr = stream.asArray();
+        return Stream.mkArr(arr.map((v,i) => Stream.mkNum(i)));
+    }
+    else throw 'stream does not contain keys';
 });
 
 function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {

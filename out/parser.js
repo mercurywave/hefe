@@ -92,7 +92,7 @@ export class Parser {
     }
     static getBuiltInsSymbols() {
         var list = Object.keys(_builtInFuncs);
-        list.push("map", "filter", "sortBy", "sumBy", "exit", "stream", "index", "true", "false");
+        list.push(..._keywordStatements);
         return list;
     }
 }
@@ -127,11 +127,15 @@ class ParseContext {
         return count;
     }
 }
+const _keywordStatements = ["map", "filter",
+    "sortBy", "sumBy", "exit", "stream",
+    "index", "true", "false", "pivot"];
 const _scopeStatements = new Syntax()
     .add([token("sortBy")], (con, res) => new SSortBy(con))
     .add([token("sumBy")], (con, res) => new SSumBy(con))
     .add([token("map")], (con, res) => new SMap(con))
-    .add([token("filter")], (con, res) => new SFilter(con));
+    .add([token("filter")], (con, res) => new SFilter(con))
+    .add([token("pivot")], (con, res) => new SPivot(con));
 const _statements = new Syntax()
     .addMulti(_scopeStatements)
     .add([token("exit")], (con, res) => new SExit(con))
@@ -236,6 +240,34 @@ class SMap extends ICanHaveScope {
     }
     onCloseChildScope(context, streams) {
         return Stream.mkArr(streams);
+    }
+}
+class SPivot extends ICanHaveScope {
+    constructor(context) {
+        super(context);
+    }
+    async process(context) {
+        if (!context.stream.isArray)
+            throw 'map function expected to process an array';
+    }
+    onOpenChildScope(context) {
+        return context.stream.asArray().slice();
+    }
+    onCloseChildScope(context, streams) {
+        const prev = context.stream.asArray();
+        let rawmap = new Map();
+        let map = new Map();
+        for (let i = 0; i < prev.length; i++) {
+            const key = streams[i].toKey();
+            const val = prev[i];
+            if (!rawmap.has(key))
+                rawmap.set(key, []);
+            rawmap.get(key).push(val);
+        }
+        for (const key of rawmap.keys()) {
+            map.set(key, Stream.mkArr(rawmap.get(key)));
+        }
+        return Stream.mkMap(map);
     }
 }
 class SFilter extends ICanHaveScope {
@@ -561,10 +593,14 @@ regFunc("piece", 2, 2, async (c, stream, pars) => {
     return Stream.mkText(split[idx - 1]);
 });
 regFunc("at", 1, 1, async (c, stream, pars) => {
+    const idx = (await pars[0].Eval(c, c.stream));
+    if (stream.isMap) {
+        const key = idx.toKey();
+        return stream.asMap().get(key) ?? new Stream();
+    }
     if (!stream.isArray)
         throw "cannot access stream array element - expected array";
-    const idx = (await pars[0].Eval(c, c.stream)).asNum();
-    return stream.asArray()[idx];
+    return stream.asArray()[idx.asNum()];
 });
 regFunc("length", 0, 0, async (c, stream, pars) => {
     if (!stream.isArray)
@@ -638,6 +674,21 @@ regFunc("tryParseNum", 0, 0, async (c, stream, pars) => {
     if (isNaN(flo))
         return stream;
     return Stream.mkNum(flo);
+});
+regFunc("keys", 0, 0, async (c, stream, pars) => {
+    if (stream.isMap) {
+        let arr = [];
+        for (let key of stream.asMap().keys()) {
+            arr.push(Stream.fromRaw(key));
+        }
+        return Stream.mkArr(arr);
+    }
+    else if (stream.isArray) {
+        let arr = stream.asArray();
+        return Stream.mkArr(arr.map((v, i) => Stream.mkNum(i)));
+    }
+    else
+        throw 'stream does not contain keys';
 });
 function regFunc(name, minP, maxP, action) {
     _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
