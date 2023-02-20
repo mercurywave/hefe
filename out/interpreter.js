@@ -886,6 +886,11 @@ regFunc("at", 1, 1, async (c, stream, pars) => {
     const idx = (await pars[0].Eval(c, c.stream)).asNum();
     return stream.asArray()[idx];
 });
+regFunc("length", 0, 0, async (c, stream, pars) => {
+    if (!stream.isArray)
+        throw "cannot count length of stream - expected array";
+    return Stream.mkNum(stream.asArray().length);
+});
 regFunc("contains", 1, 1, async (c, stream, pars) => {
     if (!stream.isText)
         throw "cannot check stream for substring contains - expected string";
