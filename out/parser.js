@@ -232,11 +232,18 @@ class SMap extends ICanHaveScope {
         super(context);
     }
     async process(context) {
-        if (!context.stream.isArray)
-            throw 'map function expected to process an array';
+        if (!context.stream.isArray && !context.stream.isMap)
+            throw 'map function expected to process an array or map';
     }
     onOpenChildScope(context) {
-        return context.stream.asArray().slice();
+        if (context.stream.isArray)
+            return context.stream.asArray().slice();
+        else if (context.stream.isMap) {
+            let map = context.stream.asMap();
+            let keys = Array.from(map.keys());
+            return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
+        }
+        throw 'unexpected stream';
     }
     onCloseChildScope(context, streams) {
         return Stream.mkArr(streams);
