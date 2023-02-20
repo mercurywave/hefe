@@ -250,11 +250,8 @@ class SMap extends ICanHaveScope{
     public onOpenChildScope(context: ExecutionContext):Stream[]{
         if(context.stream.isArray)
             return context.stream.asArray().slice();
-        else if (context.stream.isMap){
-            let map = context.stream.asMap();
-            let keys = Array.from(map.keys());
-            return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
-        }
+        else if (context.stream.isMap)
+            return context.stream.mapToPairsArr();
         throw 'unexpected stream';
     }
     public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
@@ -696,6 +693,17 @@ regFunc("slice", 1, 2, async (c, stream, pars) =>{
     if(stream.isText)
         return Stream.mkText(stream.asString().slice(start, end));
     return Stream.mkArr(stream.asArray().slice(start, end));
+});
+
+regFunc("flatten", 0, 0, async (c, stream, pars) =>{
+    if(!stream.isArray) throw "cannot flatten stream - expected array of arrays";
+    console.log(stream.asArray());
+    console.log(stream.asArray().flat());
+    return Stream.mkArr(stream.asArray().map(s => {
+        if(s.isArray) return s.asArray();
+        if(s.isMap) return s.mapToPairsArr();
+        return s;
+    }).flat());
 });
 
 regFunc("iif", 2, 3, async (c, stream, pars) =>{

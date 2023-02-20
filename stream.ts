@@ -157,6 +157,13 @@ export class Stream {
     public get isArray(): boolean { return this.array !== null; }
     public get isMap(): boolean { return this.map !== null; }
 
+    // returns array of [key, value] arrays
+    public mapToPairsArr(): Stream[]{
+        let map = this.asMap();
+        let keys = Array.from(map.keys());
+        return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
+    }
+
     public static Compare(a: Stream, b: Stream): number{
         if(a === b) return 0;
         if(a == null) return -1;

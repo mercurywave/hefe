@@ -178,6 +178,12 @@ export class Stream {
     get isBool() { return this.bool !== null; }
     get isArray() { return this.array !== null; }
     get isMap() { return this.map !== null; }
+    // returns array of [key, value] arrays
+    mapToPairsArr() {
+        let map = this.asMap();
+        let keys = Array.from(map.keys());
+        return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
+    }
     static Compare(a, b) {
         if (a === b)
             return 0;
