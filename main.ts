@@ -1,7 +1,8 @@
 import { Autocomplete } from "./code-input/autoComplete.js";
-import { CodeInput, RainbowText, Template } from "./code-input/code-input.js";
-import { Interpreter, Parser } from "./interpreter.js";
+import { CodeInput, Template } from "./code-input/code-input.js";
+import { Interpreter } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
+import { Parser } from "./parser.js";
 
 export class Workspace {
     
