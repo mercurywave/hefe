@@ -3,6 +3,13 @@ export function pattern(...patterns) {
 }
 export var Match;
 (function (Match) {
+    function debugMatch() {
+        return {
+            Optional: true,
+            Handler: (t, b) => result(false, 0, 0)
+        };
+    }
+    Match.debugMatch = debugMatch;
     function token(match, optional, key) {
         return testToken(t => t === match, optional, key ?? "tok");
     }
@@ -190,6 +197,12 @@ export class Syntax {
             test: new Pattern(matches),
             output: out
         });
+        return this;
+    }
+    addAnyOf(matches, out) {
+        for (const check of matches) {
+            this.add(check, out);
+        }
         return this;
     }
     testPartial(tokens, fromIdx) {

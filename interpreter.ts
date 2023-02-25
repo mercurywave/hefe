@@ -9,39 +9,55 @@ export interface InputContext{
 export class Interpreter{
     static __gen = 0;
     public static async Process(input: InputContext, code: IStatement[]): Promise<TransformResult>{
-        let state = new InterpreterState(input.text);
+        let state = new InterpreterState(input.text, code);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         this.__gen++;
         let currGen = this.__gen;
-        let lastScope:IStatement | null = null;
 
-        for (let ln = 0; ln < code.length; ln++) {
-            const step = code[ln];
-            if(step instanceof SNoop) continue;
-            if(step == null) return {output: state.exportAsStream(), step: state.line, isComplete: false, error: "could not parse line: " + ln};
-            state.line = ln;
-            if(step.tabDepth + 1 > state.depth && lastScope)
-                state.pushStack(lastScope);
-            while(state.depth > step.tabDepth + 1)
-                state.popStack();
-            if(step instanceof SExit) return {output: state.exportAsStream(), step:  state.line, isComplete: true};
+        while(state.line < state.__code.length) {
             try{
-                await Interpreter.parallelProcess(state, 0, step);
+                let canGo = await Interpreter.RunOneLine(state);
+                if(!canGo) { return {output: state.exportAsStream(), step:  state.line, isComplete: true}; }
             } catch(err){
                 return {output: state.exportAsStream(), step: state.line, isComplete: false, error: err};
             }
-            lastScope = step;
-            await new Promise(f => setTimeout(f, 1));
             if(currGen != this.__gen) return null;
+            state.line++;
         }
         while(state.depth > 1)
             state.popStack();
         return {output: state.exportAsStream(), step:  state.line, isComplete: true};
     }
+
+    static async RunOneLine(state:InterpreterState): Promise<boolean>{
+        let step = state.__code[state.line];
+        if(step instanceof SNoop) return true;
+        if(step == null) throw "could not parse line: " + state.line;
+        if(step.tabDepth + 1 > state.depth && state.lastStatement)
+        await state.pushStack(state.lastStatement);
+        while(state.depth > step.tabDepth + 1)
+        await state.popStack();
+        if(step instanceof SExit) return false;
+        await Interpreter.parallelProcess(state, step);
+        state.lastStatement = step;
+        await new Promise(f => setTimeout(f, 1));
+        return true;
+    }
+
+    public static async ProcessInnerScope(state:InterpreterState, stream: Stream): Promise<boolean> {
+        let curDepth = state.currStatement.tabDepth;
+        while(state.line < state.__code.length){
+            if(state.nextStatement?.tabDepth <= curDepth) { return true; }
+            state.line++;
+            if (!await this.RunOneLine(state)) {return false;}
+        }
+    }
     
-    static async parallelProcess(state: InterpreterState, depth: number, child: IStatement): Promise<void>{
+    static async parallelProcess(state: InterpreterState, child: IStatement): Promise<void>{
         let futures: Promise<void>[] = [];
-        state.foreachExecution(context => futures.push(child.process(context)) );
+        state.foreachExecution(context => {
+            futures.push(child.process(context));
+        } );
         await Promise.all(futures);
     }
 
@@ -83,15 +99,22 @@ export class ExecutionContext{
         }
         return null;
     }
+    public set scratch(value: Stream) { this.leafNode.__scratch = value; }
+    public get scratch(): Stream { return this.leafNode.__scratch; }
 }
 
 export class InterpreterState{
     __root: StackBranch;
+    __code: IStatement[] = [];
     __scopes: IStatement[] = [null];
-    public line: number = -1;
+    public line: number = 0;
+    public lastStatement: IStatement = null; // last actually evaluated statement - ignores nulls
+    public get currStatement(): IStatement | null { return this.__code[this.line]; }
+    public get nextStatement(): IStatement | null { return this.__code[this.line + 1]; }
 
-    public constructor(stream: string){
+    public constructor(stream: string, code: IStatement[]){
         this.__root = new StackBranch(Stream.mkText(stream), 0);
+        this.__code = code;
     }
 
     public get depth(): number {return this.__scopes.length;}
@@ -113,22 +136,22 @@ export class InterpreterState{
         }
     }
 
-    public pushStack(state: IStatement){
+    public async pushStack(state: IStatement): Promise<void>{
         if (!(state instanceof ICanHaveScope)) throw 'inner scope is unexpected';
-        this.foreachChain((chain, leaf) => {
+        await this.foreachChain(async (chain, leaf) => {
             const context = new ExecutionContext(chain, this);
-            const streams = state.onOpenChildScope(context);
+            const streams = await state.onOpenChildScope(context);
             leaf.branches = streams.map((s, i) => new StackBranch(s, i));
         });
         this.__scopes.push(state); // run after because this affects depth calculation
     }
-    public popStack(){
+    public async popStack(): Promise<void>{
         let owner = this.__scopes.pop();
         // since we popped, the leafs have branches
-        this.foreachChain((chain, leaf) => {
+        await this.foreachChain(async (chain, leaf) => {
             const context = new ExecutionContext(chain, this);
             const branches = leaf.branches.map(b => b.stream);
-            let result = (owner as ICanHaveScope).onCloseChildScope(context, branches);
+            let result = await (owner as ICanHaveScope).onCloseChildScope(context, branches);
             context.updateStream(result);
             leaf.branches = null;
         });
@@ -150,6 +173,7 @@ export class InterpreterState{
 
 class StackBranch{
     __stream: Stream;
+    __scratch: Stream = null;
     __branches: StackBranch[];
     variables: Record<string, Stream> = {};
     index: number;

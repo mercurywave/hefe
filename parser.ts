@@ -1,4 +1,4 @@
-import { ExecutionContext } from "./interpreter.js";
+import { ExecutionContext, Interpreter } from "./interpreter.js";
 import { Lexer } from "./Lexer.js";
 import { Match, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
 import { IKey, Stream } from "./stream.js";
@@ -124,11 +124,11 @@ const _keywordStatements = ["map", "filter",
         "index", "true", "false", "pivot"];
 type StatementGenerator = (con: ParseContext, result: PatternResult<string>) => IStatement;
 const _scopeStatements = new Syntax<string, StatementGenerator>()
-    .add([token("sortBy")], (con, res) => new SSortBy(con))
-    .add([token("sumBy")], (con, res) => new SSumBy(con))
-    .add([token("map")], (con, res) => new SMap(con))
-    .add([token("filter")], (con, res) => new SFilter(con))
-    .add([token("pivot")], (con, res) => new SPivot(con))
+    .addAnyOf(scopeStatement("sortBy"), (con, res) => new SSortBy(con, res))
+    .addAnyOf(scopeStatement("sumBy"), (con, res) => new SSumBy(con, res))
+    .addAnyOf(scopeStatement("map"), (con, res) => new SMap(con, res))
+    .addAnyOf(scopeStatement("filter"), (con, res) => new SFilter(con, res))
+    .addAnyOf(scopeStatement("pivot"), (con, res) => new SPivot(con, res))
 ;
 const _statements = new Syntax<string, StatementGenerator>()
     .addMulti(_scopeStatements)
@@ -164,8 +164,34 @@ export abstract class IStatement{
     public abstract process(context: ExecutionContext):Promise<void>;
 }
 export abstract class ICanHaveScope extends IStatement{
-    public abstract onOpenChildScope(context: ExecutionContext):Stream[];
-    public abstract onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream;
+    public abstract onOpenChildScope(context: ExecutionContext): Promise<Stream[]>;
+    public abstract onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream>;
+}
+export abstract class SScopeFunction extends ICanHaveScope{
+    __preExp: IExpression = null;
+    __postExp: IExpression = null;
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context);
+        let pre = res.tryGetByKey("pre");
+        let post = res.tryGetByKey("post");
+        if(pre) this.__preExp = Parser.tryParseExpression(context, pre);
+        if(post) this.__postExp = Parser.tryParseExpression(context, post);
+    }
+    public async process(context: ExecutionContext): Promise<void> {
+        context.scratch = await this.__preExp?.Eval(context, context.stream) ?? context.stream;
+        await this.__onProcess(context, context.scratch);
+    }
+    public async onOpenChildScope(context: ExecutionContext): Promise<Stream[]> {
+        return await this.__onOpenChildScope(context, context.scratch);
+    }
+    public async onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
+        let scratch = await this.__onCloseChildScope(context, streams);
+        if(!this.__postExp) { return scratch; }
+        return await this.__postExp.Eval(context, scratch);
+    }
+    public abstract __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]>;
+    public abstract __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream>;
+    public abstract __onProcess(context: ExecutionContext, stream: Stream): Promise<void>;
 }
 
 abstract class IExpression{
@@ -177,8 +203,11 @@ abstract class IExpression{
     }
 }
 
-function token(match: string):SingleMatch<string> {
-    return Match.token(match);
+function token(match: string, optional?: boolean):SingleMatch<string> {
+    return Match.token(match, optional);
+}
+function debugToken():SingleMatch<string>{
+    return Match.debugMatch();
 }
 
 function unary(): SingleMatch<string>{
@@ -202,7 +231,32 @@ function scopeStatementLike(): SingleMatch<string>{
     }, false, "statement");
 }
 
-function expressionLike(stop?: string, optional?: boolean):SingleMatch<string> {
+function scopeStatement(func: string): SingleMatch<string>[][]{
+    const splitter = "::";
+    return [
+        [
+            token(func),
+            debugToken(),
+            token(splitter),
+            expressionLike(null, false, "post"),
+        ],
+        [ token(func) ],
+        [
+            expressionLike(splitter, false, "pre"),
+            token(splitter),
+            token(func),
+            token(splitter),
+            expressionLike(null, false, "post"),
+        ],
+        [
+            expressionLike(splitter, true, "pre"),
+            token(splitter, true),
+            token(func)
+        ],
+    ];
+}
+
+function expressionLike(stop?: string, optional?: boolean, key?: string):SingleMatch<string> {
     return Match.testSequence(tokes => {
         const trail = tokes[token.length-1];
         if(stop && trail === stop) return false;
@@ -211,7 +265,7 @@ function expressionLike(stop?: string, optional?: boolean):SingleMatch<string> {
         if(lPars < rPars) return false;
         if(lPars > rPars) return null;
         return true;
-    }, optional, "exp");
+    }, optional, key ?? "exp");
 }
 function parameterList(optional?: boolean): SingleMatch<string>{
     return Match.testPattern(pattern(
@@ -240,37 +294,39 @@ export class SExit extends IStatement{
     public override async process(context: ExecutionContext): Promise<void> {}
 }
 
-class SMap extends ICanHaveScope{
-    public constructor(context: ParseContext){
-        super(context);
+class SMap extends SScopeFunction{
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context, res);
     }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray && !context.stream.isMap) throw 'map function expected to process an array or map';
+    public async __onProcess(context: ExecutionContext, stream: Stream): Promise<void> {
+        if(!stream.isArray && !stream.isMap) throw 'map function expected to process an array or map';
     }
-    public onOpenChildScope(context: ExecutionContext):Stream[]{
-        if(context.stream.isArray)
-            return context.stream.asArray().slice();
-        else if (context.stream.isMap)
-            return context.stream.mapToPairsArr();
+    public async __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]> {
+        if(stream.isArray)
+            return stream.asArray().slice();
+        else if (stream.isMap)
+            return stream.mapToPairsArr();
         throw 'unexpected stream';
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
+    public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
         return Stream.mkArr(streams);
     }
 }
 
-class SPivot extends ICanHaveScope{
-    public constructor(context: ParseContext){
-        super(context);
+class SPivot extends SScopeFunction{
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context, res);
     }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray) throw 'map function expected to process an array';
+    public async __onProcess(context: ExecutionContext, stream: Stream): Promise<void> {
+        if(!stream.isArray) throw 'pivot function expected to process an array';
     }
-    public onOpenChildScope(context: ExecutionContext):Stream[]{
-        return context.stream.asArray().slice();
+    public async __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]> {
+        let arr = stream.asArray().slice();
+        context.scratch = Stream.mkArr(arr);
+        return arr;
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
-        const prev = context.stream.asArray();
+    public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
+        const prev = context.scratch.asArray();
         let rawmap = new Map<IKey, Stream[]>();
         let map = new Map<IKey, Stream>();
         for (let i = 0; i < prev.length; i++) {
@@ -286,35 +342,39 @@ class SPivot extends ICanHaveScope{
     }
 }
 
-class SFilter extends ICanHaveScope{
-    public constructor(context: ParseContext){
-        super(context);
+class SFilter extends SScopeFunction{
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context, res);
     }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray) throw 'filter function expected to process an array';
+    public async __onProcess(context: ExecutionContext, stream: Stream): Promise<void> {
+        if(!stream.isArray) throw 'filter function expected to process an array';
     }
-    public onOpenChildScope(context: ExecutionContext):Stream[]{
-        return context.stream.asArray().slice();
+    public async __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]> {
+        let arr = stream.asArray().slice();
+        context.scratch = Stream.mkArr(arr);
+        return arr;
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
-        const prev = context.stream.asArray();
+    public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
+        const prev = context.scratch.asArray();
         const filtered = prev.filter((v,i) => streams[i].asBool());
         return Stream.mkArr(filtered);
     }
 }
 
-class SSortBy extends ICanHaveScope{
-    public constructor(context: ParseContext){
-        super(context);
+class SSortBy extends SScopeFunction{
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context, res);
     }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray) throw 'sortBy command expected to process an array';
+    public async __onProcess(context: ExecutionContext, stream: Stream): Promise<void> {
+        if(!stream.isArray) throw 'sortBy command expected to process an array';
     }
-    public onOpenChildScope(context: ExecutionContext):Stream[]{
-        return context.stream.asArray().slice();
+    public async __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]> {
+        let arr = stream.asArray().slice();
+        context.scratch = Stream.mkArr(arr);
+        return arr;
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
-        const prev = context.stream.asArray();
+    public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
+        const prev = context.scratch.asArray();
         let idxes = Object.keys(prev);
         idxes.sort((a,b) => {
             return Stream.Compare(streams[a], streams[b]);
@@ -324,17 +384,17 @@ class SSortBy extends ICanHaveScope{
     }
 }
 
-class SSumBy extends ICanHaveScope{
-    public constructor(context: ParseContext){
-        super(context);
+class SSumBy extends SScopeFunction{
+    public constructor(context: ParseContext, res: PatternResult<string>){
+        super(context, res);
     }
-    public async process(context: ExecutionContext): Promise<void> {
-        if(!context.stream.isArray) throw 'sumBy command expected to process an array';
+    public async __onProcess(context: ExecutionContext, stream: Stream): Promise<void> {
+        if(!stream.isArray) throw 'sumBy command expected to process an array';
     }
-    public onOpenChildScope(context: ExecutionContext):Stream[]{
-        return context.stream.asArray().slice();
+    public async __onOpenChildScope(context: ExecutionContext, stream: Stream): Promise<Stream[]> {
+        return stream.asArray().slice();
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream{
+    public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
         let total = 0;
         for (const node of streams) {
             total += node.asNum();
@@ -369,11 +429,11 @@ class SStoreLocalScoped extends ICanHaveScope{
         context.saveVar(this.__ident, new Stream()); // in case you don't actually open a scope?
         this._state.process(context);
     }
-    public onOpenChildScope(context: ExecutionContext): Stream[] {
+    public onOpenChildScope(context: ExecutionContext): Promise<Stream[]> {
         return this._state.onOpenChildScope(context);
     }
-    public onCloseChildScope(context: ExecutionContext, streams: Stream[]): Stream {
-        let result = this._state.onCloseChildScope(context, streams);
+    public async onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
+        let result = await this._state.onCloseChildScope(context, streams);
         context.saveVar(this.__ident, result);
         return context.stream;
     }
@@ -417,7 +477,9 @@ class EIdentifier extends IExpression{
 
 class EStream extends IExpression{
     public constructor(){ super(); }
-    public async Eval(context: ExecutionContext, stream: Stream): Promise<Stream> { return context.stream; }
+    public async Eval(context: ExecutionContext, stream: Stream): Promise<Stream> {
+         return context.stream;
+    }
 }
 class EIndex extends IExpression{
     public constructor(){ super(); }
@@ -697,8 +759,6 @@ regFunc("slice", 1, 2, async (c, stream, pars) =>{
 
 regFunc("flatten", 0, 0, async (c, stream, pars) =>{
     if(!stream.isArray) throw "cannot flatten stream - expected array of arrays";
-    console.log(stream.asArray());
-    console.log(stream.asArray().flat());
     return Stream.mkArr(stream.asArray().map(s => {
         if(s.isArray) return s.asArray();
         if(s.isMap) return s.mapToPairsArr();

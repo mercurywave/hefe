@@ -41,7 +41,7 @@ export var eTokenType;
 })(eTokenType || (eTokenType = {}));
 const _symbols = new Syntax()
     .add([whitespace()], eTokenType.whiteSpace)
-    .add([tokens(":=", ">>", "!=", "<=", ">=", "<<")], eTokenType.symbol)
+    .add([tokens(":=", ">>", "!=", "<=", ">=", "<<", "::")], eTokenType.symbol)
     .add([tokens("//"), Match.anything(true)], eTokenType.comment)
     .add([symbols("+-=/*!;\\()[],.:<>&|")], eTokenType.symbol)
     .add([number()], eTokenType.literalNumber)

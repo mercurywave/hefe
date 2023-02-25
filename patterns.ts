@@ -5,6 +5,12 @@ export function pattern<T>(...patterns: SingleMatch<T>[]):Pattern<T> {
 }
 
 export module Match{
+    export function debugMatch<T>(): SingleMatch<T>{
+        return {
+            Optional: true,
+            Handler: (t,b) => result(false, 0, 0)
+        }
+    }
     export function token<T>(match: T, optional?: boolean, key?: string):SingleMatch<T> {
         return testToken(t => t === match, optional, key ?? "tok");
     }
@@ -205,6 +211,12 @@ export class Syntax<T,V>{
             test: new Pattern<T>(matches),
             output: out
         } );
+        return this;
+    }
+    public addAnyOf(matches: SingleMatch<T>[][], out: V): Syntax<T,V>{
+        for (const check of matches) {
+            this.add(check, out);
+        }
         return this;
     }
 
