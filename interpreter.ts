@@ -25,7 +25,10 @@ export class Interpreter{
             state.line++;
         }
         while(state.depth > 1)
-            state.popStack();
+            await state.popStack();
+        console.log(state.depth);
+        console.log(state.__root);
+        console.log(state.__root.stream.copy());
         return {output: state.exportAsStream(), step:  state.line, isComplete: true};
     }
 
@@ -135,26 +138,33 @@ export class InterpreterState{
             }
         }
     }
+    getCurrChains(): [StackBranch[], StackBranch][]{
+        let list: [StackBranch[], StackBranch][] = [];
+        this.foreachChain((c,l) => list.push([c,l]));
+        return list;
+    }
 
     public async pushStack(state: IStatement): Promise<void>{
         if (!(state instanceof ICanHaveScope)) throw 'inner scope is unexpected';
-        await this.foreachChain(async (chain, leaf) => {
+        let list = this.getCurrChains();
+        for (const [chain, leaf] of list) {
             const context = new ExecutionContext(chain, this);
             const streams = await state.onOpenChildScope(context);
             leaf.branches = streams.map((s, i) => new StackBranch(s, i));
-        });
+        }
         this.__scopes.push(state); // run after because this affects depth calculation
     }
     public async popStack(): Promise<void>{
         let owner = this.__scopes.pop();
         // since we popped, the leafs have branches
-        await this.foreachChain(async (chain, leaf) => {
+        let list = this.getCurrChains();
+        for (const [chain, leaf] of list) {
             const context = new ExecutionContext(chain, this);
             const branches = leaf.branches.map(b => b.stream);
             let result = await (owner as ICanHaveScope).onCloseChildScope(context, branches);
             context.updateStream(result);
             leaf.branches = null;
-        });
+        }
     }
 
     public exportAsStream(): Stream{

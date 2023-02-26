@@ -135,7 +135,8 @@ const _scopeStatements = new Syntax()
     .addAnyOf(scopeStatement("sumBy"), (con, res) => new SSumBy(con, res))
     .addAnyOf(scopeStatement("map"), (con, res) => new SMap(con, res))
     .addAnyOf(scopeStatement("filter"), (con, res) => new SFilter(con, res))
-    .addAnyOf(scopeStatement("pivot"), (con, res) => new SPivot(con, res));
+    .addAnyOf(scopeStatement("pivot"), (con, res) => new SPivot(con, res))
+    .addAnyOf(scopeStatement("do"), (con, res) => new SDo(con, res));
 const _statements = new Syntax()
     .addMulti(_scopeStatements)
     .add([token("exit")], (con, res) => new SExit(con))
@@ -391,6 +392,20 @@ class SSumBy extends SScopeFunction {
         return Stream.mkNum(total);
     }
 }
+class SDo extends SScopeFunction {
+    constructor(context, res) {
+        super(context, res);
+    }
+    async __onProcess(context, stream) { }
+    async __onOpenChildScope(context, stream) {
+        return [stream];
+    }
+    async __onCloseChildScope(context, streams) {
+        if (streams.length != 1)
+            throw 'how did do get multiple streams?';
+        return streams[0];
+    }
+}
 class SStoreLocal extends IStatement {
     constructor(context, parse) {
         super(context);
@@ -498,7 +513,7 @@ class EExpression extends IExpression {
         this.__inner = Parser.tryParseExpression(context, tokes);
     }
     async Eval(context, stream) {
-        return this.__inner.Eval(context, context.stream);
+        return this.__inner.Eval(context, stream);
     }
 }
 class EArrayDef extends IExpression {
@@ -511,7 +526,7 @@ class EArrayDef extends IExpression {
             this.__elements = Parser.tryParseExpressions(context, tokes);
     }
     async Eval(context, stream) {
-        const tasks = this.__elements.map(async (e) => await e.Eval(context, context.stream));
+        const tasks = this.__elements.map(async (e) => await e.Eval(context, stream));
         const elems = await Promise.all(tasks);
         return Stream.mkArr(elems);
     }
@@ -523,7 +538,7 @@ class EUnary extends IExpression {
         this.__op = parse.getSingleKey("unary");
     }
     async Eval(context, stream) {
-        const a = await this.__right.Eval(context, context.stream);
+        const a = await this.__right.Eval(context, stream);
         return a.runUnary(this.__op);
     }
 }
@@ -562,11 +577,11 @@ class EOperator extends IExpression {
         return stack[0];
     }
     async Eval(context, stream) {
-        const a = await this.__left.Eval(context, context.stream);
+        const a = await this.__left.Eval(context, stream);
         if (this.__op == ":") {
             return await this.__right.Eval(context, a);
         }
-        const b = await this.__right.Eval(context, context.stream);
+        const b = await this.__right.Eval(context, stream);
         return a.runOp(this.__op, b);
     }
     static IsOperator(op) {
