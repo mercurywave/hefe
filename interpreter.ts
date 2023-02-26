@@ -26,9 +26,6 @@ export class Interpreter{
         }
         while(state.depth > 1)
             await state.popStack();
-        console.log(state.depth);
-        console.log(state.__root);
-        console.log(state.__root.stream.copy());
         return {output: state.exportAsStream(), step:  state.line, isComplete: true};
     }
 
