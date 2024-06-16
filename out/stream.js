@@ -122,8 +122,9 @@ export class Stream {
     toRaw() {
         return this.text ?? this.num ?? this.bool ?? this.array ?? this.map;
     }
+    canBeKey() { return this.isNum || this.isText || this.isBool; }
     toKey() {
-        if (this.isNum || this.isText || this.isBool)
+        if (this.canBeKey())
             return this.num ?? this.text ?? this.bool;
         throw 'stream is not a valid key for mapping';
     }

@@ -112,8 +112,9 @@ export class Stream {
     public toRaw(): string | number | boolean | Stream[] | null | Map<IKey,Stream> {
         return this.text ?? this.num ?? this.bool ?? this.array ?? this.map;
     }
+    public canBeKey(): boolean {return this.isNum || this.isText || this.isBool;}
     public toKey(): IKey{
-        if(this.isNum || this.isText || this.isBool) return this.num ?? this.text ?? this.bool;
+        if(this.canBeKey()) return this.num ?? this.text ?? this.bool;
         throw 'stream is not a valid key for mapping';
     }
     public static fromRaw(val: string | number | boolean | Stream[] | null | Map<IKey,Stream>): Stream{
