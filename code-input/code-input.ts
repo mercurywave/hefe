@@ -24,6 +24,7 @@ export class CodeInput extends HTMLElement{
 
     /* Run this event in all plugins with a optional list of arguments */
     public plugin_evt(id:string , args?: any[]) {
+        if(!this.template) return;
         // Run the event `id` in each plugin
         for (let i in this.template.plugins) {
             let plugin = this.template.plugins[i];
@@ -176,10 +177,12 @@ export class CodeInput extends HTMLElement{
                     break;
                 case "template":
                     this.template = CodeInput.usedTemplates[newValue || CodeInput.defaultTemplate];
-                    if(this.template.preElementStyled) this.classList.add("code-input_pre-element-styled");
-                    else this.classList.remove("code-input_pre-element-styled");
-                    // Syntax Highlight
-                    this.update(this.value);
+                    if(this.template){
+                        if(this.template.preElementStyled) this.classList.add("code-input_pre-element-styled");
+                        else this.classList.remove("code-input_pre-element-styled");
+                        // Syntax Highlight
+                        this.update(this.value);
+                    }
 
                     break;
 
@@ -370,4 +373,4 @@ export class RainbowText extends Template{
 }
 
 
-customElements.define("code-input", CodeInput); // Set tag
+customElements.define("code-input", CodeInput); // resgister custom

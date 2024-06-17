@@ -5,43 +5,31 @@ import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import "./stdlib.js";
 export class Workspace {
-    constructor(pane) {
+    constructor() {
         this._loadedScripts = [];
         this._scriptTabs = {};
-        this._paneMain = pane;
-        this._lblFile = pane.appendChild(document.createElement("h1"));
-        this._lblFile.textContent = "Hefe - brew up a transform";
-        this._paneToolbar = pane.appendChild(document.createElement("div"));
-        this._paneToolbar.className = "toolbar";
-        this._btCopy = this._paneToolbar.appendChild(document.createElement("input"));
-        this._btCopy.type = "button";
-        this._btCopy.value = "Copy to Clipboard";
+        this._lblFile = document.querySelector("#lblFile");
+        this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
-        this._txtInput = pane.appendChild(this.makeTextArea("txtIn", true));
-        this._txtOutput = pane.appendChild(this.makeTextArea("txtOut", false));
-        this._lblError = pane.appendChild(document.createElement("div"));
-        this._lblError.className = "lblError";
-        this._txtEditor = this.makeEditor(pane);
+        this._txtInput = document.querySelector("#txtInput");
+        this.setupTextArea(this._txtInput, true);
+        this._txtOutput = document.querySelector("#txtOutput");
+        this.setupTextArea(this._txtOutput, false);
+        this._lblError = document.querySelector("#lblError");
+        this._txtEditor = document.querySelector("#txtSource");
+        this.setupEditor(this._txtEditor);
         this._txtInput.value = "Yes|No|12|true\nNo|No|15|true\nYes|Yes|8|null";
         setTimeout(() => {
             this.process();
         }, 0);
-        this._paneBottom = pane.appendChild(document.createElement("div"));
-        this._paneBottom.classList.add('bottomBar');
-        this._paneBottom.addEventListener('wheel', e => this._paneBottom.scrollLeft += e.deltaY);
-        this._btAddTab = this._paneBottom.appendChild(this.makeAddTab());
-        this._paneTabs = this._paneBottom.appendChild(document.createElement("span"));
-        this._paneTabs.classList.add('tabList');
+        this._tbEditor = document.querySelector("#tbSource");
+        this._tbEditor.addEventListener("tabSelected", (ev) => this.onSwitchToTab(ev.detail.tab));
+        var btAddScript = this._tbEditor.addFixedTab("+");
+        btAddScript.addEventListener("click", () => this.generateNewScript());
         this.loadTabs();
     }
-    makeEditor(pane) {
-        let area = document.createElement("code-input");
-        area.classList.add("ed");
+    setupEditor(area) {
         area.addEventListener("input", () => this.queueProcess());
-        CodeInput.registerTemplate("def", new HefeHighlighter());
-        let wrapperIn = pane.appendChild(document.createElement("div"));
-        wrapperIn.className = "txtEd";
-        wrapperIn.appendChild(area);
         area.addEventListener("keydown", e => {
             if (e.key == 'Tab') {
                 e.preventDefault();
@@ -65,12 +53,8 @@ export class Workspace {
         area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
         area.addEventListener("drop", () => area.classList.remove("dropping"), false);
         area.addEventListener("drop", event => this.onFileDropped(event, area));
-        return area;
     }
-    makeTextArea(className, hookEvents) {
-        let area = document.createElement("textarea");
-        area.setAttribute("spellcheck", "false");
-        area.classList.add(className, "txtPanel", "txt");
+    setupTextArea(area, hookEvents) {
         if (hookEvents) {
             area.addEventListener("input", () => this.queueProcess());
             area.addEventListener("dragover", () => area.classList.add("dropping"), false);
@@ -88,7 +72,6 @@ export class Workspace {
                 this.queueProcess();
             }
         });
-        return area;
     }
     loadTabs() {
         let array = [];
@@ -103,72 +86,38 @@ export class Workspace {
         }
         array.sort((a, b) => b.LastEdit.getTime() - a.LastEdit.getTime());
         for (let script of array) {
-            const tab = this.makeTab(script);
-            this._paneTabs.appendChild(tab);
+            let tab = this.makeTab(script);
         }
         this.switchToTab(array[0]);
     }
-    makeTab(script) {
+    makeTab(script, inFront) {
+        let tab = this._tbEditor.addTab(script.Name, script.Key, inFront);
         this._loadedScripts.push(script);
-        let tab = document.createElement("span");
         this._scriptTabs[script.Key] = tab;
-        tab.classList.add('tab');
-        let lbl = tab.appendChild(document.createElement("span"));
-        lbl.classList.add("lbl");
-        lbl.innerText = script.Name;
-        let txtName = tab.appendChild(document.createElement("input"));
-        txtName.type = 'text';
-        txtName.value = script.Name;
-        txtName.addEventListener('change', () => {
-            var txt = txtName.value;
-            script.Name = (txt == "") ? "???" : txt;
-            lbl.innerText = script.Name;
+        tab.renamable = true;
+        tab.addEventListener("changeLabel", (ev) => {
+            script.Name = ev.detail.value;
+            this._txtEditor.rawTextArea.focus();
             script.Save();
         });
-        txtName.addEventListener('keyup', e => {
-            if (e.key === 'Enter' || e.key == 'Escape') {
-                this._txtEditor.rawTextArea.focus();
-            }
-        });
-        txtName.addEventListener('blur', () => {
-            tab.classList.remove('editing');
-        });
-        tab.addEventListener('click', () => {
-            if (script == this._selectedScript) {
-                tab.classList.toggle('editing');
-                txtName.focus();
-                txtName.select();
-            }
-            else {
-                this.switchToTab(script);
-            }
-        });
         return tab;
-    }
-    makeAddTab() {
-        let bt = this._paneBottom.appendChild(document.createElement("span"));
-        bt.classList.add('btAdd', 'tab');
-        bt.innerText = "+";
-        bt.addEventListener('click', () => this.generateNewScript());
-        return bt;
     }
     generateNewScript() {
         let script = new Script();
         let id = this._loadedScripts.filter(s => s.Name.startsWith("temp ")).length + 1;
         script.Name = "temp " + id;
-        let tab = this.makeTab(script);
-        this._paneTabs.insertBefore(tab, this._paneTabs.firstChild);
+        this.makeTab(script, true);
         this.switchToTab(script);
     }
     switchToTab(script) {
-        var prev = this._selectedScript;
-        if (prev != null) {
-            this._selectedScript = null; // set to null so we don't update timestamp
-            this._scriptTabs[prev.Key].classList.remove('selected');
-        }
-        this._txtEditor.value = script.Code;
+        this._tbEditor.selectTab(this._scriptTabs[script.Key]);
+    }
+    onSwitchToTab(tab) {
+        let script = this._loadedScripts.find(s => s.Key == tab.key);
         this._selectedScript = script;
-        this._scriptTabs[script.Key].classList.add('selected');
+        if (!script)
+            return;
+        this._txtEditor.value = script.Code ?? "split";
         this.process();
     }
     onFileDropped(ev, target) {
@@ -390,8 +339,9 @@ class HefeHighlighter extends Template {
     }
 }
 HefeHighlighter.CustomSymbols = [];
+CodeInput.registerTemplate("def", new HefeHighlighter());
 let _instance;
 document.addEventListener("DOMContentLoaded", () => {
-    _instance = new Workspace(document.getElementById("paneMain"));
+    _instance = new Workspace();
 });
 //# sourceMappingURL=main.js.map

@@ -7,9 +7,28 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="code-input/code-input.css">
     <script src="out/code-input/code-input.js" type="module"></script>
+    <script src="out/tabstrip.js" type="module"></script>
     <script src="out/main.js" type="module"></script>
 </head>
 <body>
-    <div id="paneMain"></div>
+    <div id="paneMain">
+        <h1 id="lblFile">Hefe - brew up a transform</h1>
+        <div id="toolbar">
+            <input type="button" id="btCopyToClip" value="Copy to Clipboard" />
+        </div>
+        <div class="inputPane">
+            <textarea id="txtInput" spellcheck="false" class="txtIn txtPanel txt"></textarea>
+            <tab-strip id="tbInput" />
+        </div>
+        <div class="outputPane">
+            <textarea id="txtOutput" spellcheck="false" class="txtOut txtPanel txt"></textarea>
+            <tab-strip id="tbOutput" />
+        </div>
+        <div id="lblError"></div>
+        <div class="sourcePane">
+            <code-input id="txtSource" class="ed" template="def"></code-input>
+            <tab-strip id="tbSource" />
+        </div>
+    </div>
 </body>
 </html>
