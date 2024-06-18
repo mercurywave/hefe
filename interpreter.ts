@@ -8,7 +8,7 @@ export interface InputContext{
 
 export class Interpreter{
     static __gen = 0;
-    public static async Process(input: InputContext, code: IStatement[]): Promise<TransformResult>{
+    public static async Process(input: InputContext, code: IStatement[], debugLine: number): Promise<TransformResult>{
         let state = new InterpreterState(input.text, code);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         this.__gen++;
@@ -17,6 +17,7 @@ export class Interpreter{
         while(state.line < state.__code.length) {
             try{
                 let canGo = await Interpreter.RunOneLine(state);
+                if(state.line == debugLine) canGo = false;
                 if(!canGo) { return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.line, isComplete: true}; }
             } catch(err){
                 return {output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: false, error: err};

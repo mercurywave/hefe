@@ -1,7 +1,7 @@
 import { ICanHaveScope, Parser, SExit, SNoop } from "./parser.js";
 import { Stream } from "./stream.js";
 export class Interpreter {
-    static async Process(input, code) {
+    static async Process(input, code, debugLine) {
         let state = new InterpreterState(input.text, code);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         this.__gen++;
@@ -9,6 +9,8 @@ export class Interpreter {
         while (state.line < state.__code.length) {
             try {
                 let canGo = await Interpreter.RunOneLine(state);
+                if (state.line == debugLine)
+                    canGo = false;
                 if (!canGo) {
                     return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: true };
                 }

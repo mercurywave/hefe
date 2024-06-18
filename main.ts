@@ -89,6 +89,23 @@ export class Workspace {
                 }
                 this.queueProcess();
             }
+            if(e.key == "Enter"){
+                if(e.ctrlKey){
+                    let pos = area.selectionEnd;
+                    let lines = area.value.split("\n");
+                    let curY = 0;
+                    for (curY = 0; curY < lines.length; curY++) {
+                        let ln = lines[curY].length;
+                        if(pos <= ln) break;
+                        pos -= (ln + 1);
+                    }
+                    if(_highlighter.DebugLine == curY) curY = 99999999;
+                    _highlighter.DebugLine = curY;
+                    area.update(area.value);
+                    this.process();
+                    e.preventDefault();
+                }
+            }
         });
         area.addEventListener("dragover", () => area.classList.add("dropping"), false);
         area.addEventListener("dragleave", () => area.classList.remove("dropping"), false);
@@ -201,13 +218,13 @@ export class Workspace {
                 this._selectedScript.Save();
             }
             
-            this.asyncProcess(code);
+            this.asyncProcess(code, _highlighter.DebugLine);
         }
         catch(err){
             this.ShowError(err);
         }
     }
-    public async asyncProcess(code: string){
+    public async asyncProcess(code: string, debugLine: number){
         try{
             var parse = Parser.Parse(code);
             //console.log(parse);
@@ -215,7 +232,7 @@ export class Workspace {
                 text: this._txtInput.value,
                 fileName: this._fileName ?? "[temp file]",
             }
-            let res = await Interpreter.Process(input, parse);
+            let res = await Interpreter.Process(input, parse, debugLine);
             if(res?.error)
                 this.ShowError(res.error);
             else if(res != null)
@@ -320,6 +337,7 @@ interface IScriptJson {
 class HefeHighlighter extends Template{
     static CustomSymbols: string[] = [];
     static BuiltInSymbols: string[];
+    public DebugLine: number = 99999999;
     public constructor()
     {
         super(true, true, true, [new Autocomplete(HefeHighlighter.updatePopup)]);
@@ -333,6 +351,10 @@ class HefeHighlighter extends Template{
         for (let i = 0; i < lines.length; i++) {
             if(i > 0) htmlResult.push("</br>");
             let code = lines[i];
+            if(i == this.DebugLine){
+                htmlResult.push(`<span style="color:#37BA5A">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
+                continue;
+            }
             try{
                 let lex = Lexer.Tokenize(code);
 
@@ -443,7 +465,8 @@ interface CompMatchSuggestion{
     atStart?: number;
 }
 
-CodeInput.registerTemplate("def", new HefeHighlighter() );
+const _highlighter = new HefeHighlighter();
+CodeInput.registerTemplate("def", _highlighter);
 
 let _instance : Workspace;
 document.addEventListener("DOMContentLoaded", () => {
