@@ -460,6 +460,7 @@ class SExpression extends IStatement{
     public constructor(context: ParseContext, parse: PatternResult<string>){
         super(context);
         this.__exp = Parser.tryParseExpression(context, parse.GetSlice());
+        if(!this.__exp) throw 'could not parse expression';
     }
     public async process(context: ExecutionContext): Promise<void> {
         const result = await this.__exp.Eval(context, context.stream);

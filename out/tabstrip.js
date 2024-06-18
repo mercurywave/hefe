@@ -47,6 +47,9 @@ export class TabStrip extends HTMLElement {
             elem.appendChild(tab);
         return tab;
     }
+    removeTab(tab) {
+        this._mainTabs.removeChild(tab);
+    }
 }
 TabStrip._tmplt = mkTmplt(`
         <div class="bottomBar">

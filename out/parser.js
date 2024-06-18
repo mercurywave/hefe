@@ -442,6 +442,8 @@ class SExpression extends IStatement {
     constructor(context, parse) {
         super(context);
         this.__exp = Parser.tryParseExpression(context, parse.GetSlice());
+        if (!this.__exp)
+            throw 'could not parse expression';
     }
     async process(context) {
         const result = await this.__exp.Eval(context, context.stream);

@@ -78,6 +78,9 @@ export class TabStrip extends HTMLElement {
         else elem.appendChild(tab);
         return tab;
     }
+    public removeTab(tab: Tab){
+        this._mainTabs.removeChild(tab);
+    }
 }
 
 export class Tab extends HTMLElement {

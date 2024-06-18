@@ -4,10 +4,12 @@ import { Interpreter } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import "./stdlib.js";
+const STREAM = "stream";
 export class Workspace {
     constructor() {
         this._loadedScripts = [];
         this._scriptTabs = {};
+        this._outputTabs = {};
         this._lblFile = document.querySelector("#lblFile");
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
@@ -19,6 +21,10 @@ export class Workspace {
         this._txtOutput = document.querySelector("#txtOutput");
         this.setupTextArea(this._txtOutput, false);
         this._tbOutput = document.querySelector("#tbOutput");
+        let tabStream = this._tbOutput.addTab("Output", STREAM);
+        this._outputTabs[STREAM] = tabStream;
+        this._tbOutput.selectTab(tabStream); // select before the event listener is attached
+        this._tbOutput.addEventListener("tabSelected", (e) => this.switchOutputs(e.detail.key));
         this._lblError = document.querySelector("#lblError");
         this._txtEditor = document.querySelector("#txtSource");
         this.setupEditor(this._txtEditor);
@@ -176,13 +182,42 @@ export class Workspace {
             if (res?.error)
                 this.ShowError(res.error);
             else if (res != null) {
-                this._txtOutput.value = res.output.toDisplayText();
+                let vars = Object.keys(res.variables);
+                vars = vars.filter(v => v != "fileName"); // not useful
+                vars.push(STREAM);
+                for (const v of vars) {
+                    if (this._outputTabs[v] == null) {
+                        this._outputTabs[v] = this._tbOutput.addTab(v, v);
+                    }
+                }
+                for (const v of Object.keys(this._outputTabs)) {
+                    if (!vars.find(k => k == v)) {
+                        this._tbOutput.removeTab(this._outputTabs[v]);
+                        delete this._outputTabs[v];
+                    }
+                }
+                if (!this._outputTabs[this._selectedOutput]) {
+                    this._selectedOutput = STREAM;
+                    this._tbOutput.selectTab(this._outputTabs[STREAM]);
+                }
+                if (this._selectedOutput == STREAM) {
+                    this._txtOutput.value = res.output.toDisplayText();
+                }
+                else {
+                    this._txtOutput.value = res.variables[this._selectedOutput].toDisplayText();
+                }
                 this._lblError.textContent = "";
             }
         }
         catch (err) {
             this.ShowError(err);
         }
+    }
+    switchOutputs(key) {
+        if (this._selectedOutput == key)
+            return;
+        this._selectedOutput = key;
+        this.process();
     }
     copyToClipboard(textarea) {
         textarea.select();

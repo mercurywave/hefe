@@ -17,16 +17,16 @@ export class Interpreter{
         while(state.line < state.__code.length) {
             try{
                 let canGo = await Interpreter.RunOneLine(state);
-                if(!canGo) { return {output: state.exportAsStream(), step:  state.line, isComplete: true}; }
+                if(!canGo) { return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.line, isComplete: true}; }
             } catch(err){
-                return {output: state.exportAsStream(), step: state.line, isComplete: false, error: err};
+                return {output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: false, error: err};
             }
             if(currGen != this.__gen) return null;
             state.line++;
         }
         while(state.depth > 1)
             await state.popStack();
-        return {output: state.exportAsStream(), step:  state.line, isComplete: true};
+        return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.line, isComplete: true};
     }
 
     static async RunOneLine(state:InterpreterState): Promise<boolean>{
@@ -68,6 +68,7 @@ export class Interpreter{
 
 export interface TransformResult{
     output: Stream;
+    variables: Record<string, Stream>;
     step: number;
     isComplete: boolean;
     error?: string
@@ -171,6 +172,23 @@ export class InterpreterState{
         this.foreachChain((c,l) => streams.push(l.stream));
         if(streams.length == 1) return streams[0];
         return Stream.mkArr(streams);
+    }
+
+    public exportVariables(): Record<string, Stream>{
+        let baseVars:Record<string,Stream> = {...this.__root.variables};
+
+        let vars:Record<string,Stream[]> = {};
+        this.foreachChain((c,l) => {
+            for (const v of Object.keys(l.variables)) {
+                if(!vars[v]) vars[v] = [];
+                vars[v].push(l.variables[v]);
+            }
+        });
+        for (const v of Object.keys(vars)) {
+            if(!baseVars[v]) baseVars[v] = Stream.mkArr(vars[v]);
+        }
+
+        return baseVars;
     }
 
     public setGlobalVal(name: string, value: Stream){
