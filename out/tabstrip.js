@@ -55,8 +55,8 @@ TabStrip._tmplt = mkTmplt(`
         </div>
         <style>
             .bottomBar{
-                position: fixed;
-                top: calc(100% - 1.5em - 5px);
+                position: relative;
+                bottom: 5px;
                 left: 0;
                 width: 100%;
                 height: 1.5em;
@@ -107,6 +107,9 @@ export class Tab extends HTMLElement {
             this.dispatchEvent(new CustomEvent("changeLabel", { detail: { value: txt } }));
             elem.classList.remove('editing');
         };
+        txtName.addEventListener('change', e => {
+            txtName.value = this.renameHook(txtName.value);
+        });
         txtName.addEventListener('keyup', e => {
             if (e.key === 'Enter')
                 commit();
@@ -117,7 +120,7 @@ export class Tab extends HTMLElement {
     }
     onClick(event) {
         var elem = this.shadowRoot.querySelector("#tab");
-        if (this.renamable && this._selected) {
+        if (this.renameHook && this._selected) {
             if (!elem.classList.contains("editing")) {
                 let txtName = this.shadowRoot.querySelector("#txtRename");
                 txtName.value = this.innerText;

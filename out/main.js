@@ -13,8 +13,12 @@ export class Workspace {
         this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);
+        this._tbInput = document.querySelector("#tbInput");
+        let btNewIn = this._tbInput.addFixedTab("+");
+        btNewIn.addEventListener("tabclick", () => this.generateNewInput());
         this._txtOutput = document.querySelector("#txtOutput");
         this.setupTextArea(this._txtOutput, false);
+        this._tbOutput = document.querySelector("#tbOutput");
         this._lblError = document.querySelector("#lblError");
         this._txtEditor = document.querySelector("#txtSource");
         this.setupEditor(this._txtEditor);
@@ -25,7 +29,7 @@ export class Workspace {
         this._tbEditor = document.querySelector("#tbSource");
         this._tbEditor.addEventListener("tabSelected", (ev) => this.onSwitchToTab(ev.detail.tab));
         var btAddScript = this._tbEditor.addFixedTab("+");
-        btAddScript.addEventListener("click", () => this.generateNewScript());
+        btAddScript.addEventListener("tabclick", () => this.generateNewScript());
         this.loadTabs();
     }
     setupEditor(area) {
@@ -86,7 +90,7 @@ export class Workspace {
         }
         array.sort((a, b) => b.LastEdit.getTime() - a.LastEdit.getTime());
         for (let script of array) {
-            let tab = this.makeTab(script);
+            this.makeTab(script);
         }
         this.switchToTab(array[0]);
     }
@@ -94,7 +98,7 @@ export class Workspace {
         let tab = this._tbEditor.addTab(script.Name, script.Key, inFront);
         this._loadedScripts.push(script);
         this._scriptTabs[script.Key] = tab;
-        tab.renamable = true;
+        tab.renameHook = s => s.trim();
         tab.addEventListener("changeLabel", (ev) => {
             script.Name = ev.detail.value;
             this._txtEditor.rawTextArea.focus();
@@ -119,6 +123,8 @@ export class Workspace {
             return;
         this._txtEditor.value = script.Code ?? "split";
         this.process();
+    }
+    generateNewInput() {
     }
     onFileDropped(ev, target) {
         if (ev.dataTransfer.items) {

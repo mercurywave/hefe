@@ -7,8 +7,8 @@ export class TabStrip extends HTMLElement {
         </div>
         <style>
             .bottomBar{
-                position: fixed;
-                top: calc(100% - 1.5em - 5px);
+                position: relative;
+                bottom: 5px;
                 left: 0;
                 width: 100%;
                 height: 1.5em;
@@ -110,7 +110,7 @@ export class Tab extends HTMLElement {
         </style>
     `);
     public key: string;
-    public renamable: boolean;
+    public renameHook: (input: string) => string;
     private _selected: boolean;
     constructor(){
         super();
@@ -141,6 +141,9 @@ export class Tab extends HTMLElement {
             this.dispatchEvent(new CustomEvent("changeLabel", {detail: { value: txt } }));
             elem.classList.remove('editing');
         };
+        txtName.addEventListener('change', e => {
+            txtName.value = this.renameHook(txtName.value);
+        });
         txtName.addEventListener('keyup', e => {
             if(e.key === 'Enter') commit();
         });
@@ -150,7 +153,7 @@ export class Tab extends HTMLElement {
     }
     private onClick(event: Event){
         var elem = this.shadowRoot.querySelector("#tab");
-        if(this.renamable && this._selected) {
+        if(this.renameHook && this._selected) {
             if(!elem.classList.contains("editing")) {
                 let txtName = this.shadowRoot.querySelector("#txtRename") as HTMLInputElement;
                 txtName.value = this.innerText;

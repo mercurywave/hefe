@@ -16,17 +16,19 @@
         <div id="toolbar">
             <input type="button" id="btCopyToClip" value="Copy to Clipboard" />
         </div>
-        <div class="inputPane">
+        <div id="inputPane"class="tabbedPane">
             <textarea id="txtInput" spellcheck="false" class="txtIn txtPanel txt"></textarea>
             <tab-strip id="tbInput" />
         </div>
-        <div class="outputPane">
+        <div id="outputPane" class="tabbedPane">
             <textarea id="txtOutput" spellcheck="false" class="txtOut txtPanel txt"></textarea>
             <tab-strip id="tbOutput" />
         </div>
         <div id="lblError"></div>
-        <div class="sourcePane">
-            <code-input id="txtSource" class="ed" template="def"></code-input>
+        <div id="sourcePane" class="tabbedPane">
+            <div class="editorBox">
+                <code-input id="txtSource" class="ed" template="def"></code-input>
+            </div>
             <tab-strip id="tbSource" />
         </div>
     </div>
