@@ -1,4 +1,4 @@
-import { Autocomplete } from "./code-input/autocomplete.js";
+import { Autocomplete } from "./code-input/auto-complete.js";
 import { CodeInput, Template } from "./code-input/code-input.js";
 import { Interpreter } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";

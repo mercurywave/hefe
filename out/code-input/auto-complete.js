@@ -78,4 +78,4 @@ export class Autocomplete extends Plugin {
         return { "top": afterSpan.offsetTop - textarea.scrollTop, "left": afterSpan.offsetLeft - textarea.scrollLeft };
     }
 }
-//# sourceMappingURL=autocomplete.js.map
+//# sourceMappingURL=auto-complete.js.map
