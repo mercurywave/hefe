@@ -20,7 +20,7 @@ export class Workspace {
         this._tbInput = document.querySelector("#tbInput");
         let btNewIn = this._tbInput.addFixedTab("+");
         this._tbInput.addEventListener("tabSelected", (e) => this.switchInputs(e.detail.key));
-        this.generateNewInput(true);
+        this._mainInputTab = this.generateNewInput(true);
         btNewIn.addEventListener("tabclick", () => this.generateNewInput(false));
         this._txtOutput = document.querySelector("#txtOutput");
         this.setupTextArea(this._txtOutput, false);
@@ -182,6 +182,7 @@ export class Workspace {
         this._tbInput.selectTab(tab);
         if (!isMainInput)
             this.process();
+        return tab;
     }
     getVariableValue(name) {
         var active = this._inputTabValues[this._selectedInput];
@@ -208,7 +209,7 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            if (this._selectedInput == INPUT) {
+            if (this._inputTabValues[this._selectedInput].tab == this._mainInputTab) {
                 this._fileName = file.name;
                 this._lblFile.textContent = "Hefe - " + file.name;
             }
@@ -239,7 +240,7 @@ export class Workspace {
             let inVars = {};
             for (const tab of Object.values(this._inputTabValues)) {
                 var name = tab.tab.name;
-                if (name != INPUT && name != "")
+                if (tab.tab !== this._mainInputTab && name != "")
                     inVars[name] = this.getVariableValue(name);
             }
             const input = {

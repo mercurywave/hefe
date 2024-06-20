@@ -29,6 +29,7 @@ export class Workspace {
     private _scriptTabs: Record<string, Tab> = {};
 
     private _selectedInput: string;
+    private _mainInputTab: Tab;
     private _inputTabValues: Record<string, InputTab> = {};
 
     private _selectedOutput: string;
@@ -46,7 +47,7 @@ export class Workspace {
         this._tbInput = document.querySelector("#tbInput");
         let btNewIn = this._tbInput.addFixedTab("+");
         this._tbInput.addEventListener("tabSelected", (e:any) => this.switchInputs(e.detail.key))
-        this.generateNewInput(true);
+        this._mainInputTab = this.generateNewInput(true);
         btNewIn.addEventListener("tabclick", () => this.generateNewInput(false));
 
         this._txtOutput = document.querySelector("#txtOutput");
@@ -193,7 +194,7 @@ export class Workspace {
         this._selectedInput = key;
         this._txtInput.value = this._inputTabValues[key].value;
     }
-    private generateNewInput(isMainInput: boolean){
+    private generateNewInput(isMainInput: boolean): Tab{
         let name = "";
         if(isMainInput){
             name = INPUT;
@@ -210,6 +211,7 @@ export class Workspace {
         this._inputTabValues[key] = {value: "", tab: tab };
         this._tbInput.selectTab(tab);
         if(!isMainInput) this.process();
+        return tab;
     }
     private getVariableValue(name: string){
         var active = this._inputTabValues[this._selectedInput];
@@ -238,7 +240,7 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            if(this._selectedInput == INPUT){
+            if(this._inputTabValues[this._selectedInput].tab == this._mainInputTab){
                 this._fileName = file.name;
                 this._lblFile.textContent = "Hefe - " + file.name;
             }
@@ -272,7 +274,8 @@ export class Workspace {
             let inVars: Record<string, string> = {};
             for (const tab of Object.values(this._inputTabValues)) {
                 var name = tab.tab.name;
-                if(name != INPUT && name != "") inVars[name] = this.getVariableValue(name);
+                if(tab.tab !== this._mainInputTab && name != "") 
+                    inVars[name] = this.getVariableValue(name);
             }
             const input = {
                 text: this.getVariableValue(INPUT),
