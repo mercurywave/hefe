@@ -84,6 +84,12 @@ export class Tab extends HTMLElement {
         const shadow = this.attachShadow({ mode: "open" });
         shadow.append(Tab._tmplt.content.cloneNode(true));
     }
+    get name() {
+        return this.innerText;
+    }
+    set name(value) {
+        this.innerText = value;
+    }
     static get observedAttributes() {
         return ['selected'];
     }

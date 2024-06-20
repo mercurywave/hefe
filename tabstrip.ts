@@ -121,6 +121,13 @@ export class Tab extends HTMLElement {
         shadow.append(Tab._tmplt.content.cloneNode(true));
     }
 
+    public get name():string {
+        return this.innerText; 
+    }
+    public set name(value:string) {
+        this.innerText = value;
+    }
+
     static get observedAttributes() {
         return ['selected'];
     }

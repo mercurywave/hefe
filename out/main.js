@@ -5,10 +5,12 @@ import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import "./stdlib.js";
 const STREAM = "stream";
+const INPUT = "Input";
 export class Workspace {
     constructor() {
         this._loadedScripts = [];
         this._scriptTabs = {};
+        this._inputTabValues = {};
         this._outputTabs = {};
         this._lblFile = document.querySelector("#lblFile");
         this._btCopy = document.querySelector("#btCopyToClip");
@@ -17,7 +19,9 @@ export class Workspace {
         this.setupTextArea(this._txtInput, true);
         this._tbInput = document.querySelector("#tbInput");
         let btNewIn = this._tbInput.addFixedTab("+");
-        btNewIn.addEventListener("tabclick", () => this.generateNewInput());
+        this._tbInput.addEventListener("tabSelected", (e) => this.switchInputs(e.detail.key));
+        this.generateNewInput(true);
+        btNewIn.addEventListener("tabclick", () => this.generateNewInput(false));
         this._txtOutput = document.querySelector("#txtOutput");
         this.setupTextArea(this._txtOutput, false);
         this._tbOutput = document.querySelector("#tbOutput");
@@ -149,7 +153,45 @@ export class Workspace {
         this._txtEditor.value = script.Code ?? "split";
         this.process();
     }
-    generateNewInput() {
+    switchInputs(key) {
+        if (this._selectedInput == key)
+            return;
+        if (this._selectedInput) {
+            this._inputTabValues[this._selectedInput].value = this._txtInput.value;
+        }
+        this._selectedInput = key;
+        this._txtInput.value = this._inputTabValues[key].value;
+    }
+    generateNewInput(isMainInput) {
+        let name = "";
+        if (isMainInput) {
+            name = INPUT;
+        }
+        else {
+            for (let index = 1; index < 999; index++) {
+                name = "in" + index;
+                if (!Object.values(this._inputTabValues).find(t => t.tab.name == name))
+                    break;
+            }
+        }
+        let key = "k" + Date.now();
+        let tab = this._tbInput.addTab(name, key);
+        if (!isMainInput)
+            tab.renameHook = s => s.replaceAll(' ', '');
+        this._inputTabValues[key] = { value: "", tab: tab };
+        this._tbInput.selectTab(tab);
+        if (!isMainInput)
+            this.process();
+    }
+    getVariableValue(name) {
+        var active = this._inputTabValues[this._selectedInput];
+        if (active.tab.name == name)
+            return this._txtInput.value;
+        for (const tab of Object.values(this._inputTabValues)) {
+            if (tab.tab.name == name)
+                return tab.value;
+        }
+        return "";
     }
     onFileDropped(ev, target) {
         if (ev.dataTransfer.items) {
@@ -166,8 +208,10 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            this._fileName = file.name;
-            this._lblFile.textContent = "Hefe - " + file.name;
+            if (this._selectedInput == INPUT) {
+                this._fileName = file.name;
+                this._lblFile.textContent = "Hefe - " + file.name;
+            }
             this.process();
         };
         reader.readAsText(file);
@@ -192,25 +236,31 @@ export class Workspace {
     async asyncProcess(code, debugLine) {
         try {
             var parse = Parser.Parse(code);
-            //console.log(parse);
+            let inVars = {};
+            for (const tab of Object.values(this._inputTabValues)) {
+                var name = tab.tab.name;
+                if (name != INPUT && name != "")
+                    inVars[name] = this.getVariableValue(name);
+            }
             const input = {
-                text: this._txtInput.value,
+                text: this.getVariableValue(INPUT),
                 fileName: this._fileName ?? "[temp file]",
+                variables: inVars,
             };
             let res = await Interpreter.Process(input, parse, debugLine);
             if (res?.error)
                 this.ShowError(res.error);
             else if (res != null) {
-                let vars = Object.keys(res.variables);
-                vars = vars.filter(v => v != "fileName"); // not useful
-                vars.push(STREAM);
-                for (const v of vars) {
+                let outVars = Object.keys(res.variables);
+                outVars = outVars.filter(v => v != "fileName" && inVars[v] == null); // not useful
+                outVars.push(STREAM);
+                for (const v of outVars) {
                     if (this._outputTabs[v] == null) {
                         this._outputTabs[v] = this._tbOutput.addTab(v, v);
                     }
                 }
                 for (const v of Object.keys(this._outputTabs)) {
-                    if (!vars.find(k => k == v)) {
+                    if (!outVars.find(k => k == v)) {
                         this._tbOutput.removeTab(this._outputTabs[v]);
                         delete this._outputTabs[v];
                     }
@@ -300,7 +350,7 @@ class HefeHighlighter extends Template {
                 htmlResult.push("</br>");
             let code = lines[i];
             if (i == this.DebugLine) {
-                htmlResult.push(`<span style="color:#37BA5A">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
+                htmlResult.push(`<span style="color:#F1D815">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
                 continue;
             }
             try {

@@ -4,6 +4,7 @@ import { Stream } from "./stream.js";
 export interface InputContext{
     text: string;
     fileName: string;
+    variables: Record<string, string>;
 }
 
 export class Interpreter{
@@ -11,6 +12,9 @@ export class Interpreter{
     public static async Process(input: InputContext, code: IStatement[], debugLine: number): Promise<TransformResult>{
         let state = new InterpreterState(input.text, code);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
+        for (const key in input.variables) {
+            state.setGlobalVal(key, Stream.mkText(input.variables[key]));
+        }
         this.__gen++;
         let currGen = this.__gen;
 
