@@ -27,6 +27,7 @@ export class Workspace {
     private _selectedScript: Script;
     private _loadedScripts: Script[] = [];
     private _scriptTabs: Record<string, Tab> = {};
+    private _processOnVisible: boolean = false;
 
     private _selectedInput: string;
     private _mainInputTab: Tab;
@@ -74,6 +75,13 @@ export class Workspace {
         btAddScript.addEventListener("tabclick", () => this.generateNewScript())
 
         this.loadTabs();
+        window.addEventListener("storage", e => this.resyncTabs());
+        document.addEventListener("visibilitychange", e => { 
+            if(!document.hidden && this._processOnVisible){
+                this._processOnVisible = false;
+                this.process();
+            }
+        } );
     }
 
     private setupEditor(area: CodeInput){
@@ -142,11 +150,8 @@ export class Workspace {
 
     private loadTabs(){
         let array : Script[] = [];
-        for (let i = 0; i < localStorage.length; i++){
-            let key = localStorage.key(i);
-            if(key.startsWith("hefe")){
-                array.push(new Script(key));
-            }
+        for (const key of this.getScriptKeys()) {
+            array.push(new Script(key));
         }
         if(array.length == 0) { array.push(new Script()); }
         array.sort((a,b) => b.LastEdit.getTime() - a.LastEdit.getTime());
@@ -154,6 +159,36 @@ export class Workspace {
             this.makeTab(script);
         }
         this.switchToTab(array[0]);
+    }
+    private getScriptKeys(): string[]{
+        let array : string[] = [];
+        for (let i = 0; i < localStorage.length; i++){
+            let key = localStorage.key(i);
+            if(key.startsWith("hefe")){
+                array.push(key);
+            }
+        }
+        return array;
+    }
+    private resyncTabs() {
+        console.log("Updating from local storage");
+        for (const key of this.getScriptKeys()){
+            if(this._scriptTabs[key] == null){
+                this.makeTab(new Script(key));
+            }
+            let tab = this._scriptTabs[key];
+            let script = this._loadedScripts.find(s => s.Key == key);
+            script.Save
+            if(!tab || !script) continue;
+            if(!script.Reload()) continue;
+            tab.name = script.Name;
+            if(this._tbEditor.selectedTab === tab){
+                this._txtEditor.value = script.Code ?? "";
+                if(document.hidden) this._processOnVisible = true;
+                else this.process();
+            }
+        }
+
     }
     private makeTab(script: Script, inFront?: boolean): Tab {
         let tab = this._tbEditor.addTab(script.Name, script.Key, inFront);
@@ -172,6 +207,7 @@ export class Workspace {
         let id = this._loadedScripts.filter(s=>s.Name.startsWith("temp ")).length + 1;
         script.Name = "temp " + id;
         this.makeTab(script, true);
+        script.Save();
         this.switchToTab(script);
     }
     private switchToTab(script: Script){
@@ -357,11 +393,7 @@ class Script {
             this.LastEdit = new Date();
         } else{
             this.Key = key;
-            const obj = JSON.parse(localStorage.getItem(key)) as IScriptJson;
-            this.Name = obj.name;
-            this.LastEdit = new Date(JSON.parse(obj.edit));
-            this.Code = obj.code;
-            if(this.Name == "") this.Name = (new Date()).toDateString();
+            this.Reload();
         }
     }
     public Save(){
@@ -375,6 +407,15 @@ class Script {
             code: this.Code
         }
         localStorage.setItem(this.Key, JSON.stringify(obj));
+    }
+    public Reload(): boolean{
+        const obj = JSON.parse(localStorage.getItem(this.Key)) as IScriptJson;
+        if(JSON.stringify(this.LastEdit) === obj.edit) return false;
+        this.Name = obj.name;
+        this.LastEdit = new Date(JSON.parse(obj.edit));
+        this.Code = obj.code;
+        if(this.Name == "") this.Name = (new Date()).toDateString();
+        return true;
     }
 }
 

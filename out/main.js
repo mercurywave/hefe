@@ -10,6 +10,7 @@ export class Workspace {
     constructor() {
         this._loadedScripts = [];
         this._scriptTabs = {};
+        this._processOnVisible = false;
         this._inputTabValues = {};
         this._outputTabs = {};
         this._lblFile = document.querySelector("#lblFile");
@@ -41,6 +42,13 @@ export class Workspace {
         var btAddScript = this._tbEditor.addFixedTab("+");
         btAddScript.addEventListener("tabclick", () => this.generateNewScript());
         this.loadTabs();
+        window.addEventListener("storage", e => this.resyncTabs());
+        document.addEventListener("visibilitychange", e => {
+            if (!document.hidden && this._processOnVisible) {
+                this._processOnVisible = false;
+                this.process();
+            }
+        });
     }
     setupEditor(area) {
         area.addEventListener("input", () => this.queueProcess());
@@ -108,11 +116,8 @@ export class Workspace {
     }
     loadTabs() {
         let array = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            let key = localStorage.key(i);
-            if (key.startsWith("hefe")) {
-                array.push(new Script(key));
-            }
+        for (const key of this.getScriptKeys()) {
+            array.push(new Script(key));
         }
         if (array.length == 0) {
             array.push(new Script());
@@ -122,6 +127,39 @@ export class Workspace {
             this.makeTab(script);
         }
         this.switchToTab(array[0]);
+    }
+    getScriptKeys() {
+        let array = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            let key = localStorage.key(i);
+            if (key.startsWith("hefe")) {
+                array.push(key);
+            }
+        }
+        return array;
+    }
+    resyncTabs() {
+        console.log("Updating from local storage");
+        for (const key of this.getScriptKeys()) {
+            if (this._scriptTabs[key] == null) {
+                this.makeTab(new Script(key));
+            }
+            let tab = this._scriptTabs[key];
+            let script = this._loadedScripts.find(s => s.Key == key);
+            script.Save;
+            if (!tab || !script)
+                continue;
+            if (!script.Reload())
+                continue;
+            tab.name = script.Name;
+            if (this._tbEditor.selectedTab === tab) {
+                this._txtEditor.value = script.Code ?? "";
+                if (document.hidden)
+                    this._processOnVisible = true;
+                else
+                    this.process();
+            }
+        }
     }
     makeTab(script, inFront) {
         let tab = this._tbEditor.addTab(script.Name, script.Key, inFront);
@@ -140,6 +178,7 @@ export class Workspace {
         let id = this._loadedScripts.filter(s => s.Name.startsWith("temp ")).length + 1;
         script.Name = "temp " + id;
         this.makeTab(script, true);
+        script.Save();
         this.switchToTab(script);
     }
     switchToTab(script) {
@@ -314,12 +353,7 @@ class Script {
         }
         else {
             this.Key = key;
-            const obj = JSON.parse(localStorage.getItem(key));
-            this.Name = obj.name;
-            this.LastEdit = new Date(JSON.parse(obj.edit));
-            this.Code = obj.code;
-            if (this.Name == "")
-                this.Name = (new Date()).toDateString();
+            this.Reload();
         }
     }
     Save() {
@@ -333,6 +367,17 @@ class Script {
             code: this.Code
         };
         localStorage.setItem(this.Key, JSON.stringify(obj));
+    }
+    Reload() {
+        const obj = JSON.parse(localStorage.getItem(this.Key));
+        if (JSON.stringify(this.LastEdit) === obj.edit)
+            return false;
+        this.Name = obj.name;
+        this.LastEdit = new Date(JSON.parse(obj.edit));
+        this.Code = obj.code;
+        if (this.Name == "")
+            this.Name = (new Date()).toDateString();
+        return true;
     }
 }
 class HefeHighlighter extends Template {

@@ -63,6 +63,7 @@ export class TabStrip extends HTMLElement {
             detail: {tab: tab, key: tab.key}
         }));
     }
+    public get selectedTab():Tab { return this._selectedTab; }
     public addFixedTab(label: string, key?: string): Tab{
         var tab = this.addTabTo(this._fixedTabs, false, label, key);
         tab.addEventListener("tabclick", () => this.dispatchEvent(new CustomEvent("fixedTabClick", {
