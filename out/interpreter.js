@@ -1,40 +1,40 @@
 import { ICanHaveScope, Parser, SExit, SNoop } from "./parser.js";
 import { Stream } from "./stream.js";
 export class Interpreter {
-    static async Process(input, code, debugLine) {
-        let state = new InterpreterState(input.text, code);
+    static async Process(input, parse, debugLine) {
+        let state = new InterpreterState(Stream.mkText(input.text), parse.Statements, parse.functionDefs, debugLine);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         for (const key in input.variables) {
             state.setGlobalVal(key, Stream.mkText(input.variables[key]));
         }
         this.__gen++;
         let currGen = this.__gen;
-        while (state.line < state.__code.length) {
+        while (state.statementLine < state.__code.length) {
             try {
                 let canGo = await Interpreter.RunOneLine(state);
-                if (state.line == debugLine)
+                if (state.currFileLine == state.__debugLine)
                     canGo = false;
                 if (!canGo) {
-                    return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: true };
+                    return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
                 }
             }
             catch (err) {
-                return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: false, error: err };
+                return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: false, error: err };
             }
             if (currGen != this.__gen)
                 return null;
-            state.line++;
+            state.statementLine++;
         }
         while (state.depth > 1)
             await state.popStack();
-        return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.line, isComplete: true };
+        return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
     }
     static async RunOneLine(state) {
-        let step = state.__code[state.line];
+        let step = state.__code[state.statementLine];
         if (step instanceof SNoop)
             return true;
         if (step == null)
-            throw "could not parse line: " + state.line;
+            throw "could not parse line: " + state.statementLine;
         if (step.tabDepth + 1 > state.depth && state.lastStatement)
             await state.pushStack(state.lastStatement);
         while (state.depth > step.tabDepth + 1)
@@ -48,11 +48,11 @@ export class Interpreter {
     }
     static async ProcessInnerScope(state, stream) {
         let curDepth = state.currStatement.tabDepth;
-        while (state.line < state.__code.length) {
+        while (state.statementLine < state.__code.length) {
             if (state.nextStatement?.tabDepth <= curDepth) {
                 return true;
             }
-            state.line++;
+            state.statementLine++;
             if (!await this.RunOneLine(state)) {
                 return false;
             }
@@ -67,6 +67,33 @@ export class Interpreter {
     }
     static getBuiltinSymbols() {
         return Parser.getBuiltInsSymbols();
+    }
+    static async RunUserFunction(context, func, params, stream) {
+        let interpreter = context.__state;
+        let state = new InterpreterState(stream, func.code, interpreter.functionDefs, interpreter.__debugLine);
+        for (let index = 0; index < params.length; index++) {
+            state.setGlobalVal(func.params[index], params[index]);
+        }
+        let currGen = this.__gen;
+        while (state.statementLine < state.__code.length) {
+            try {
+                let canGo = await Interpreter.RunOneLine(state);
+                if (state.currFileLine == interpreter.__debugLine)
+                    canGo = false;
+                if (!canGo) {
+                    return state.exportAsStream();
+                }
+            }
+            catch (err) {
+                throw new Error(`error in function ${func.name}: ${err}`);
+            }
+            if (currGen != this.__gen)
+                return null;
+            state.statementLine++;
+        }
+        while (state.depth > 1)
+            await state.popStack();
+        return state.exportAsStream();
     }
 }
 Interpreter.__gen = 0;
@@ -96,15 +123,18 @@ export class ExecutionContext {
     get scratch() { return this.leafNode.__scratch; }
 }
 export class InterpreterState {
-    get currStatement() { return this.__code[this.line]; }
-    get nextStatement() { return this.__code[this.line + 1]; }
-    constructor(stream, code) {
+    get currStatement() { return this.__code[this.statementLine]; }
+    get nextStatement() { return this.__code[this.statementLine + 1]; }
+    get currFileLine() { return this.currStatement.fileLine; }
+    constructor(stream, code, funcs, debugLine) {
         this.__code = [];
         this.__scopes = [null];
-        this.line = 0;
+        this.statementLine = 0;
         this.lastStatement = null; // last actually evaluated statement - ignores nulls
-        this.__root = new StackBranch(Stream.mkText(stream), 0);
+        this.__root = new StackBranch(stream, 0);
         this.__code = code;
+        this.functionDefs = funcs;
+        this.__debugLine = debugLine;
     }
     get depth() { return this.__scopes.length; }
     foreachExecution(action, depth) {

@@ -1,3 +1,4 @@
+import { Interpreter } from "./interpreter.js";
 import { Lexer } from "./Lexer.js";
 import { Match, pattern, Syntax } from "./patterns.js";
 import { Stream } from "./stream.js";
@@ -8,13 +9,14 @@ export class Parser {
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
             let state = this.ParseLine(context, code);
+            state.fileLine = ln;
             context.push(state);
         }
-        return context.Statements;
+        return context;
     }
     static ParseLine(context, code) {
         const tokens = Lexer.Tokenize(code);
-        context.currLineDepth = context.getDepth(tokens.TabDepth);
+        context.prepNewLine(tokens);
         if (tokens.Tokens.length == 0)
             return new SNoop(context);
         return this.ParseStatements(context, tokens.Tokens);
@@ -96,12 +98,29 @@ export class Parser {
         return list;
     }
 }
-class ParseContext {
+export class ParseContext {
     constructor() {
         this.Statements = [];
+        this.currLineDepth = 0;
+        this.functionDefs = {};
+        this._parseStateFunc = null;
     }
     push(statement) {
-        this.Statements.push(statement);
+        if (this._parseStateFunc) {
+            statement.tabDepth--;
+            this._parseStateFunc.registerChildLine(statement);
+        }
+        else if (statement instanceof SFunctionDef) {
+            this.registerFunction(statement);
+        }
+        else {
+            this.Statements.push(statement);
+        }
+    }
+    prepNewLine(lex) {
+        if (lex.TabDepth == 0)
+            this._parseStateFunc = null;
+        this.currLineDepth = this.getDepth(lex.TabDepth);
     }
     getScope(tabDepth) {
         if (tabDepth == 0)
@@ -126,10 +145,14 @@ class ParseContext {
         }
         return count;
     }
+    registerFunction(func) {
+        this._parseStateFunc = func;
+        this.functionDefs[func.name] = func;
+    }
 }
 const _keywordStatements = ["map", "filter",
     "sortBy", "sumBy", "exit", "stream",
-    "index", "true", "false", "pivot"];
+    "index", "true", "false", "pivot", "function"];
 const _scopeStatements = new Syntax()
     .addAnyOf(scopeStatement("sortBy"), (con, res) => new SSortBy(con, res))
     .addAnyOf(scopeStatement("sumBy"), (con, res) => new SSumBy(con, res))
@@ -142,6 +165,8 @@ const _statements = new Syntax()
     .add([token("exit")], (con, res) => new SExit(con))
     .add([identifier(), token("<<"), scopeStatementLike()], (con, res) => new SStoreLocalScoped(con, res))
     .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
+    .add([token("function"), identifier("fn"), parameterDefList()], (con, res) => new SFunctionDef(con, res))
+    .add([token("function"), identifier("fn")], (con, res) => new SFunctionDef(con, res))
     .add([expressionLike(">>")], (con, res) => new SExpression(con, res));
 // should not include operators -- need to avoid infinite/expensive parsing recursion
 const _expressionComps = new Syntax()
@@ -209,8 +234,11 @@ function debugToken() {
 function unary() {
     return Match.anyOf(["!", "-"], false, "unary");
 }
-function identifier() {
-    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i), false, "ident");
+function identifier(key) {
+    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i), false, key ?? "ident");
+}
+function isIdentifier(s) {
+    return s.match(/^[$A-Z_][0-9A-Z_$]*$/i) !== null;
 }
 function literalNumber() {
     return Match.testToken(t => !isNaN(+t) && isFinite(+t));
@@ -265,6 +293,29 @@ function expressionLike(stop, optional, key) {
 function parameterList(optional) {
     return Match.testPattern(pattern(token("("), expressionLike(null, true), // this doesn't seem to actually be optional?
     token(")")), optional, "params");
+}
+function parameterDefList(key) {
+    return Match.testSequence(tokes => {
+        if (tokes.length == 0)
+            return null; // do I really need to handle this here?
+        if (tokes[0] !== "(")
+            return false;
+        if (tokes[token.length - 1] === ")")
+            return true;
+        for (let i = 1; i < tokes.length - 1; i++) {
+            const element = tokes[i];
+            if (i % 2 === 1 && !isIdentifier(element))
+                return false;
+            if (i % 2 === 0 && element !== ",")
+                return false;
+        }
+        return true;
+    }, false, key ?? "params");
+}
+function getParamDefListIdents(params) {
+    if (params == null)
+        return null;
+    return params.filter((s, i) => (i % 2 === 1));
 }
 class SMultiStatement extends IStatement {
     constructor(context, list) {
@@ -406,6 +457,19 @@ class SDo extends SScopeFunction {
         if (streams.length != 1)
             throw 'how did do get multiple streams?';
         return streams[0];
+    }
+}
+export class SFunctionDef extends IStatement {
+    constructor(context, parse) {
+        super(context);
+        this.code = [];
+        this.name = parse.getSingleKey("fn");
+        var params = parse.tryGetByKey("params");
+        this.params = getParamDefListIdents(params) ?? [];
+    }
+    async process(context) { }
+    registerChildLine(statement) {
+        this.code.push(statement);
     }
 }
 class SStoreLocal extends IStatement {
@@ -631,12 +695,24 @@ class EFunctionCall extends IExpression {
         return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
     static async runFunc(name, params, context, stream) {
+        let dynamic = context.__state.functionDefs[name];
         let func = _builtInFuncs[name];
-        if (func == null)
+        if (func == null && dynamic == null)
             throw 'could not find function ' + name;
-        if (params.length < func.minP || params.length > func.maxP)
-            throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
-        return await func.action(context, stream, params);
+        if (dynamic) {
+            if (params.length > dynamic.params.length)
+                throw `${name} expected ${dynamic.params.length} params, got ${params.length}`;
+            let resolved = [];
+            for (const p of params) {
+                resolved.push(await p.Eval(context, stream));
+            }
+            return await Interpreter.RunUserFunction(context, dynamic, resolved, stream);
+        }
+        else {
+            if (params.length < func.minP || params.length > func.maxP)
+                throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
+            return await func.action(context, stream, params);
+        }
     }
 }
 const _builtInFuncs = {};

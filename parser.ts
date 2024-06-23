@@ -1,23 +1,24 @@
 import { ExecutionContext, Interpreter } from "./interpreter.js";
-import { Lexer } from "./Lexer.js";
+import { Lexer, LexLine } from "./Lexer.js";
 import { Match, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
 import { IKey, Stream } from "./stream.js";
 
 export class Parser{
-    public static Parse(code: string): IStatement[]{
+    public static Parse(code: string): ParseContext{
         const lines = code.split("\n");
         let context = new ParseContext();
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
             let state = this.ParseLine(context, code);
+            state.fileLine = ln;
             context.push(state);
         }
-        return context.Statements;
+        return context;
     }
     
     public static ParseLine(context: ParseContext, code: string): IStatement{
         const tokens = Lexer.Tokenize(code);
-        context.currLineDepth = context.getDepth(tokens.TabDepth);
+        context.prepNewLine(tokens);
         if(tokens.Tokens.length == 0) return new SNoop(context);
         return this.ParseStatements(context, tokens.Tokens);
     }
@@ -91,11 +92,24 @@ export class Parser{
     }
 }
 
-class ParseContext{
+export class ParseContext{
     public Statements: IStatement[] = [];
-    public currLineDepth: number;
+    public currLineDepth: number = 0;
+    public functionDefs: Record<string, SFunctionDef> = {};
+    private _parseStateFunc: SFunctionDef = null;
     public push(statement: IStatement){
-        this.Statements.push(statement);
+        if(this._parseStateFunc) {
+            statement.tabDepth--;
+            this._parseStateFunc.registerChildLine(statement);
+        } else if(statement instanceof SFunctionDef) {
+            this.registerFunction(statement);
+        } else {
+            this.Statements.push(statement);
+        }
+    }
+    public prepNewLine(lex: LexLine){
+        if(lex.TabDepth == 0) this._parseStateFunc = null;
+        this.currLineDepth = this.getDepth(lex.TabDepth);
     }
     public getScope(tabDepth: number):IStatement | null{
         if(tabDepth == 0) return null;
@@ -117,11 +131,15 @@ class ParseContext{
         }
         return count;
     }
+    public registerFunction(func: SFunctionDef){
+        this._parseStateFunc = func;
+        this.functionDefs[func.name] = func;
+    }
 }
 
 const _keywordStatements = ["map", "filter",
         "sortBy", "sumBy", "exit", "stream",
-        "index", "true", "false", "pivot"];
+        "index", "true", "false", "pivot", "function"];
 type StatementGenerator = (con: ParseContext, result: PatternResult<string>) => IStatement;
 const _scopeStatements = new Syntax<string, StatementGenerator>()
     .addAnyOf(scopeStatement("sortBy"), (con, res) => new SSortBy(con, res))
@@ -136,6 +154,8 @@ const _statements = new Syntax<string, StatementGenerator>()
     .add([token("exit")], (con, res) => new SExit(con))
     .add([identifier(), token("<<"), scopeStatementLike()], (con, res) => new SStoreLocalScoped(con, res))
     .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
+    .add([token("function"), identifier("fn"), parameterDefList()], (con, res) => new SFunctionDef(con, res))
+    .add([token("function"), identifier("fn")], (con, res) => new SFunctionDef(con, res))
     .add([expressionLike(">>")], (con, res) => new SExpression(con, res))
 ;
 
@@ -159,6 +179,7 @@ const _expressionComps = new Syntax<string, ExpressionGenerator>()
 
 export abstract class IStatement{
     tabDepth: number;
+    fileLine: number;
     public constructor(context: ParseContext){
         this.tabDepth = context.currLineDepth;
     }
@@ -215,8 +236,11 @@ function unary(): SingleMatch<string>{
     return Match.anyOf(["!", "-"], false, "unary");
 }
 
-function identifier():SingleMatch<string> {
-    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i), false, "ident");
+function identifier(key?: string):SingleMatch<string> {
+    return Match.testToken(t => t.match(/^[$A-Z_][0-9A-Z_$]*$/i), false, key ?? "ident");
+}
+function isIdentifier(s: string): boolean{
+    return s.match(/^[$A-Z_][0-9A-Z_$]*$/i) !== null;
 }
 function literalNumber():SingleMatch<string> {
     return Match.testToken(t => !isNaN(+t) && isFinite(+t));
@@ -274,6 +298,23 @@ function parameterList(optional?: boolean): SingleMatch<string>{
         expressionLike(null, true), // this doesn't seem to actually be optional?
         token(")")
     ), optional, "params");
+}
+function parameterDefList(key?: string):SingleMatch<string> {
+    return Match.testSequence(tokes => {
+        if(tokes.length == 0) return null; // do I really need to handle this here?
+        if(tokes[0] !== "(") return false;
+        if(tokes[token.length-1] === ")") return true;
+        for (let i = 1; i < tokes.length - 1; i++) {
+            const element = tokes[i];
+            if(i%2 === 1 && !isIdentifier(element)) return false;
+            if(i%2 === 0 && element !== ",") return false;
+        }
+        return true;
+    }, false, key ?? "params");
+}
+function getParamDefListIdents(params: string[]): string[]{
+    if(params == null) return null;
+    return params.filter((s,i) => (i % 2 === 1));
 }
 
 class SMultiStatement extends IStatement{
@@ -416,6 +457,22 @@ class SDo extends SScopeFunction{
     public async __onCloseChildScope(context: ExecutionContext, streams: Stream[]): Promise<Stream> {
         if(streams.length != 1) throw 'how did do get multiple streams?';
         return streams[0];
+    }
+}
+
+export class SFunctionDef extends IStatement{
+    public name: string;
+    public params: string[];
+    public code: IStatement[] = [];
+    public constructor(context: ParseContext, parse: PatternResult<string>){
+        super(context);
+        this.name = parse.getSingleKey("fn");
+        var params = parse.tryGetByKey("params");
+        this.params = getParamDefListIdents(params) ?? [];
+    }
+    public async process(context: ExecutionContext): Promise<void> {}
+    public registerChildLine(statement: IStatement){
+        this.code.push(statement);
     }
 }
 
@@ -667,11 +724,22 @@ class EFunctionCall extends IExpression{
         return await EFunctionCall.runFunc(this.name, this.params, context, stream);
     }
     public static async runFunc(name: string, params: IExpression[], context: ExecutionContext, stream: Stream): Promise<Stream>{
+        let dynamic = context.__state.functionDefs[name];
         let func = _builtInFuncs[name];
-        if(func == null) throw 'could not find function ' + name;
-        if(params.length < func.minP || params.length > func.maxP)
-            throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
-        return await func.action(context, stream, params);
+        if(func == null && dynamic == null) throw 'could not find function ' + name;
+        if(dynamic){
+            if(params.length > dynamic.params.length)
+                throw `${name} expected ${dynamic.params.length} params, got ${params.length}`;
+            let resolved: Stream[] = [];
+            for (const p of params) {
+                resolved.push(await p.Eval(context, stream));
+            }
+            return await Interpreter.RunUserFunction(context, dynamic, resolved, stream);
+        } else {
+            if(params.length < func.minP || params.length > func.maxP)
+                throw `${name} expected ${func.minP}-${func.maxP} params, got ${params.length}`;
+            return await func.action(context, stream, params);
+        }
     }
 }
 
