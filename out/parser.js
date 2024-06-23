@@ -9,7 +9,8 @@ export class Parser {
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
             let state = this.ParseLine(context, code);
-            state.fileLine = ln;
+            if (state)
+                state.fileLine = ln;
             context.push(state);
         }
         return context;
@@ -93,9 +94,24 @@ export class Parser {
         return arr[0];
     }
     static getBuiltInsSymbols() {
-        var list = Object.keys(_builtInFuncs);
-        list.push(..._keywordStatements);
+        var list = [];
+        for (const func of Object.values(_builtInFuncs)) {
+            list.push({
+                symbol: func.name + (func.minP > 0 ? "(" : ""),
+                display: this.getFuncDisplay(func)
+            });
+        }
+        for (const ident of _keywordStatements) {
+            list.push({
+                symbol: ident,
+                display: ident
+            });
+        }
         return list;
+    }
+    static getFuncDisplay(func) {
+        let params = func.params.map((v, i) => v + (i >= func.minP ? "?" : ""));
+        return `${func.name}(${params.join(", ")})`;
     }
 }
 export class ParseContext {
@@ -103,6 +119,7 @@ export class ParseContext {
         this.Statements = [];
         this.currLineDepth = 0;
         this.functionDefs = {};
+        this.identifiers = new Set();
         this._parseStateFunc = null;
     }
     push(statement) {
@@ -122,6 +139,7 @@ export class ParseContext {
             this._parseStateFunc = null;
         this.currLineDepth = this.getDepth(lex.TabDepth);
     }
+    registerIdent(ident) { this.identifiers.add(ident); }
     getScope(tabDepth) {
         if (tabDepth == 0)
             return null;
@@ -148,6 +166,9 @@ export class ParseContext {
     registerFunction(func) {
         this._parseStateFunc = func;
         this.functionDefs[func.name] = func;
+        for (const p of func.params) {
+            this.registerIdent(p);
+        }
     }
 }
 const _keywordStatements = ["map", "filter",
@@ -471,11 +492,13 @@ export class SFunctionDef extends IStatement {
     registerChildLine(statement) {
         this.code.push(statement);
     }
+    get displayDef() { return `${this.name}(${this.params.join(",")})`; }
 }
 class SStoreLocal extends IStatement {
     constructor(context, parse) {
         super(context);
         this.__ident = parse.getSingleKey("ident");
+        context.registerIdent(this.__ident);
         this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
     }
     async process(context) {
@@ -487,6 +510,7 @@ class SStoreLocalScoped extends ICanHaveScope {
     constructor(context, parse) {
         super(context);
         this.__ident = parse.getSingleKey("ident");
+        context.registerIdent(this.__ident);
         this._state = Parser.ParseStatements(context, parse.tryGetByKey("statement"));
     }
     async process(context) {
@@ -716,11 +740,11 @@ class EFunctionCall extends IExpression {
     }
 }
 const _builtInFuncs = {};
-export function regFunc(name, minP, maxP, action) {
-    _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
+export function regFunc(name, minP, maxP, params, action) {
+    _builtInFuncs[name] = mkFunc(name, minP, maxP, params, action);
 }
-function mkFunc(name, minP, maxP, action) {
-    return { name, minP, maxP, action };
+function mkFunc(name, minP, maxP, params, action) {
+    return { name, minP, maxP, params, action };
 }
 function arrCount(arr, ...elems) {
     if (arr.length == 0)

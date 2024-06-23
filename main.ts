@@ -93,10 +93,11 @@ export class Workspace {
                 var end = area.selectionEnd;
                 var possibleAdds = HefeHighlighter.GetSuggestions(area.rawTextArea, end);
                 if(possibleAdds.toInsert){
+                    let symbol = possibleAdds.toInsert.symbol;
                     area.value = area.value.substring(0, possibleAdds.atStart)
-                        + possibleAdds.toInsert
+                        + symbol
                         + area.value.substring(end);
-                    area.selectionStart = area.selectionEnd = possibleAdds.atStart + possibleAdds.toInsert.length;
+                    area.selectionStart = area.selectionEnd = possibleAdds.atStart + symbol.length;
                 }
                 else{
                     area.value = area.value.substring(0, start) + '\t' + area.value.substring(end);
@@ -307,6 +308,11 @@ export class Workspace {
     public async asyncProcess(code: string, debugLine: number){
         try{
             var parse = Parser.Parse(code);
+            HefeHighlighter.CustomSymbols = Array.from(parse.identifiers).map(s => {return {symbol: s, display:s};});
+            for (const func of Object.values(parse.functionDefs)) {
+                HefeHighlighter.CustomSymbols.push({symbol: func.name + "(", display: func.displayDef});
+            }
+
             let inVars: Record<string, string> = {};
             for (const tab of Object.values(this._inputTabValues)) {
                 var name = tab.tab.name;
@@ -426,8 +432,8 @@ interface IScriptJson {
 }
 
 class HefeHighlighter extends Template{
-    static CustomSymbols: string[] = [];
-    static BuiltInSymbols: string[];
+    static CustomSymbols: CompMatch[] = [];
+    static BuiltInSymbols: CompMatch[];
     public DebugLine: number = 99999999;
     public constructor()
     {
@@ -437,8 +443,7 @@ class HefeHighlighter extends Template{
     public highlight(resultElement: Element, ctl?: CodeInput): void {
         let htmlResult: string[] = [];
         let lines = ctl.value.split("\n");
-        let baseSymbols = new Set<string>(HefeHighlighter.BuiltInSymbols);
-        let foundSymbols = new Set<string>();
+        let baseSymbols = new Set<string>(HefeHighlighter.BuiltInSymbols.map(c => c.symbol));
         for (let i = 0; i < lines.length; i++) {
             if(i > 0) htmlResult.push("</br>");
             let code = lines[i];
@@ -449,14 +454,10 @@ class HefeHighlighter extends Template{
             try{
                 let lex = Lexer.Tokenize(code);
 
-                for (const toke of lex.details) {
-                    if(toke.type == eTokenType.identifier && !baseSymbols.has(toke.token))
-                        foundSymbols.add(toke.token);
-                }
-
                 for (let pos = 0; pos < code.length; pos++) {
                     const symb = code[pos];
-                    const type = Lexer.getTokenAt(lex.details, pos)?.type;
+                    const toke = Lexer.getTokenAt(lex.details, pos);
+                    const type = toke?.type;
                     const color = HefeHighlighter.getColor(type);
                     htmlResult.push(`<span style="color: ${color}">${ctl.escape_html(symb)}</span>`);
                 }
@@ -465,8 +466,7 @@ class HefeHighlighter extends Template{
             }
         }
         // extra space makes sure the pre height matches the inner text area
-        htmlResult.push(`<span style="color:#BF4938">&nbsp;</span>`); 
-        HefeHighlighter.CustomSymbols = Array.from(foundSymbols);
+        htmlResult.push(`<span style="color:#BF4938">&nbsp;</span>`);
         resultElement.innerHTML = htmlResult.join("");
     }
     static getColor(type: eTokenType): string{
@@ -484,7 +484,7 @@ class HefeHighlighter extends Template{
         
         let elems: string[] = [];
         for (const suggest of toShow) {
-            elems.push(`<div class=suggest>${suggest}</div>`);
+            elems.push(`<div class=suggest>${suggest.display}</div>`);
         }
         popupElem.innerHTML = elems.join("");
     }
@@ -505,15 +505,15 @@ class HefeHighlighter extends Template{
             if(details?.type == eTokenType.identifier){
                 if(selectionEnd == details.start + details.token.length){
                     let curr = details.token;
-                    if(HefeHighlighter.BuiltInSymbols.includes(curr)) return {possible:[]};
+                    if(HefeHighlighter.BuiltInSymbols.find(s => s.symbol == curr)) return {possible:[]};
                     let arr = HefeHighlighter.BuiltInSymbols.concat(HefeHighlighter.CustomSymbols);
                     let scored: CompMatchScore[] = arr
-                        .map(s => {return {sym:s, score: HefeHighlighter.match(curr, s)}})
+                        .map(s => {return {match:s, score: HefeHighlighter.match(curr, s.symbol)}})
                         .filter(s => s.score >= 10)
                         .sort((a,b) => b.score - a.score); // lower idx better
                     if(scored.length == 0) return {possible:[]}
                     
-                    const possible = scored.map(s => s.sym);
+                    const possible = scored.map(s => s.match);
                     return {
                         possible,
                         toInsert: possible[0],
@@ -550,14 +550,19 @@ interface InputTab{
     value: string;
 }
 
+export interface CompMatch{
+    symbol: string;
+    display: string;
+}
+
 interface CompMatchScore{
-    sym: string;
+    match: CompMatch;
     score: number;
 }
 
 interface CompMatchSuggestion{
-    possible: string[];
-    toInsert?: string;
+    possible: CompMatch[];
+    toInsert?: CompMatch;
     atStart?: number;
 }
 

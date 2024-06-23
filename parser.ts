@@ -1,5 +1,6 @@
 import { ExecutionContext, Interpreter } from "./interpreter.js";
 import { Lexer, LexLine } from "./Lexer.js";
+import { CompMatch } from "./main.js";
 import { Match, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
 import { IKey, Stream } from "./stream.js";
 
@@ -10,7 +11,7 @@ export class Parser{
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
             let state = this.ParseLine(context, code);
-            state.fileLine = ln;
+            if(state) state.fileLine = ln;
             context.push(state);
         }
         return context;
@@ -85,10 +86,26 @@ export class Parser{
         return arr[0];
     }
 
-    public static getBuiltInsSymbols(): string[]{
-        var list: string[] = Object.keys(_builtInFuncs);
-        list.push(... _keywordStatements);
+    public static getBuiltInsSymbols(): CompMatch[]{
+        var list: CompMatch[] = [];
+        for (const func of Object.values(_builtInFuncs)) {
+            list.push({
+                symbol: func.name + (func.minP > 0 ? "(" : ""),
+                display: this.getFuncDisplay(func)
+            });
+        }
+        
+        for (const ident of _keywordStatements) {
+            list.push({
+                symbol: ident,
+                display: ident
+            });
+        }
         return list;
+    }
+    private static getFuncDisplay(func: IFunction): string{
+        let params = func.params.map((v,i) => v + (i >= func.minP ? "?" : ""));
+        return `${func.name}(${params.join(", ")})`;
     }
 }
 
@@ -96,6 +113,7 @@ export class ParseContext{
     public Statements: IStatement[] = [];
     public currLineDepth: number = 0;
     public functionDefs: Record<string, SFunctionDef> = {};
+    public identifiers: Set<string> = new Set();
     private _parseStateFunc: SFunctionDef = null;
     public push(statement: IStatement){
         if(this._parseStateFunc) {
@@ -111,6 +129,7 @@ export class ParseContext{
         if(lex.TabDepth == 0) this._parseStateFunc = null;
         this.currLineDepth = this.getDepth(lex.TabDepth);
     }
+    public registerIdent(ident: string){ this.identifiers.add(ident); }
     public getScope(tabDepth: number):IStatement | null{
         if(tabDepth == 0) return null;
         for (let index = this.Statements.length - 1; index >= 0; index--) {
@@ -134,6 +153,9 @@ export class ParseContext{
     public registerFunction(func: SFunctionDef){
         this._parseStateFunc = func;
         this.functionDefs[func.name] = func;
+        for (const p of func.params) {
+            this.registerIdent(p);
+        }
     }
 }
 
@@ -474,6 +496,7 @@ export class SFunctionDef extends IStatement{
     public registerChildLine(statement: IStatement){
         this.code.push(statement);
     }
+    public get displayDef(): string { return `${this.name}(${this.params.join(",")})`; }
 }
 
 class SStoreLocal extends IStatement{
@@ -482,6 +505,7 @@ class SStoreLocal extends IStatement{
     public constructor(context: ParseContext, parse: PatternResult<string>){
         super(context);
         this.__ident = parse.getSingleKey("ident");
+        context.registerIdent(this.__ident);
         this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
     }
     public async process(context: ExecutionContext): Promise<void> {
@@ -496,6 +520,7 @@ class SStoreLocalScoped extends ICanHaveScope{
     public constructor(context: ParseContext, parse: PatternResult<string>){
         super(context);
         this.__ident = parse.getSingleKey("ident");
+        context.registerIdent(this.__ident);
         this._state = Parser.ParseStatements(context, parse.tryGetByKey("statement")) as ICanHaveScope;
     }
     public async process(context: ExecutionContext): Promise<void> {
@@ -749,15 +774,16 @@ interface IFunction{
     name: string;
     minP: number;
     maxP: number;
+    params: string[];
     action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>;
 }
 
-export function regFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {
-    _builtInFuncs[name] = mkFunc(name, minP, maxP, action);
+export function regFunc(name: string, minP: number, maxP: number, params:string[], action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>) {
+    _builtInFuncs[name] = mkFunc(name, minP, maxP, params, action);
 }
 
-function mkFunc(name: string, minP: number, maxP: number, action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>):IFunction {
-    return {name, minP, maxP, action};
+function mkFunc(name: string, minP: number, maxP: number,params:string[], action: (context: ExecutionContext, stream: Stream, pars: IExpression[]) => Promise<Stream>):IFunction {
+    return {name, minP, maxP, params, action};
 }
 
 function arrCount<T>(arr: T[], ...elems:T[]): number

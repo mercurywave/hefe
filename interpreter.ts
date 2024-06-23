@@ -1,3 +1,4 @@
+import { CompMatch } from "./main.js";
 import { ICanHaveScope, IStatement, ParseContext, Parser, SExit, SFunctionDef, SNoop } from "./parser.js";
 import { Stream } from "./stream.js";
 
@@ -66,7 +67,7 @@ export class Interpreter{
         await Promise.all(futures);
     }
 
-    public static getBuiltinSymbols(): string[]{
+    public static getBuiltinSymbols(): CompMatch[]{
         return Parser.getBuiltInsSymbols();
     }
     
