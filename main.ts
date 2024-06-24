@@ -417,7 +417,7 @@ class Script {
                 iter++;
             }
             this.Key = "hefe" + iter;
-            this.Name = "???";
+            this.Name = (new Date()).toDateString();
             this.Code = "";
             this.LastEdit = new Date();
         } else{
