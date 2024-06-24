@@ -55,9 +55,21 @@ export class Workspace {
         });
     }
     setupCommands() {
-        let input = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        this._ctlCommand.registerCommand("Test", eCommandType.concept, i => this._ctlSidebar.show(input), input);
-        this._ctlCommand.registerCommand("Foo", eCommandType.concept, i => this._ctlSidebar.show("Foo!"), "foo");
+        for (const help of _loadedHelpPages) {
+            let type = eCommandType.concept;
+            if (help.type === "function")
+                type = eCommandType.function;
+            if (help.type === "concept")
+                type = eCommandType.concept;
+            if (help.type === "howto")
+                type = eCommandType.howTo;
+            let search = help.title + "\n" + help.content;
+            let content = `
+                <h1>${help.title}</h1>
+                <div>${help.content}</div>
+            `;
+            this._ctlCommand.registerCommand(help.title, type, i => this._ctlSidebar.show(content), search);
+        }
         this._ctlCommand.indexCommands();
     }
     setupEditor(area) {
@@ -510,6 +522,10 @@ class HefeHighlighter extends Template {
     }
 }
 HefeHighlighter.CustomSymbols = [];
+let _loadedHelpPages = [];
+export function regHelp(pages) {
+    _loadedHelpPages.push(...pages);
+}
 const _highlighter = new HefeHighlighter();
 CodeInput.registerTemplate("def", _highlighter);
 let _instance;

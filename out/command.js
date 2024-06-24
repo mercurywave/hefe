@@ -101,7 +101,11 @@ export class CommandPalette extends HTMLElement {
         return scored.slice(0, 9).map(s => s.cmd);
     }
     registerCommand(title, type, action, searchText) {
-        let split = searchText.split(' ').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+        let split = searchText
+            .replace(/[^\w\s\']|_/g, "") // strip non-alphanumeric characters
+            .split(' ')
+            .map(s => s.trim().toLowerCase())
+            .filter(s => s.length > 0);
         let searchWords = {};
         for (const word of split) {
             searchWords[word] = (searchWords[word] ?? 0) + 1;
@@ -154,9 +158,8 @@ CommandPalette._tmplt = mkTmplt(`
         <style>
             #command-palette {
                 position: fixed;
-                top: 5px;
-                left: 50%;
-                transform: translate(-50%, 0);
+                top: 10px;
+                left: 10px;
                 display: none;
                 width: 300px;
                 outline: 1px solid #fff;

@@ -6,7 +6,6 @@ import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import { Sidebar } from "./sidebar.js";
 import "./stdlib.js";
-import { Stream } from "./stream.js";
 import { TabStrip, Tab } from "./tabstrip.js";
 
 const STREAM = "stream";
@@ -93,9 +92,18 @@ export class Workspace {
     }
 
     private setupCommands(){
-        let input = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        this._ctlCommand.registerCommand("Test", eCommandType.concept, i => this._ctlSidebar.show(input), input);
-        this._ctlCommand.registerCommand("Foo", eCommandType.concept, i => this._ctlSidebar.show("Foo!"), "foo");
+        for (const help of _loadedHelpPages) {
+            let type = eCommandType.concept;
+            if(help.type === "function") type = eCommandType.function;
+            if(help.type === "concept") type = eCommandType.concept;
+            if(help.type === "howto") type = eCommandType.howTo;
+            let search = help.title + "\n" + help.content;
+            let content = `
+                <h1>${help.title}</h1>
+                <div>${help.content}</div>
+            `;
+            this._ctlCommand.registerCommand(help.title, type, i => this._ctlSidebar.show(content), search);
+        }
         this._ctlCommand.indexCommands();
     }
 
@@ -579,6 +587,16 @@ interface CompMatchSuggestion{
     possible: CompMatch[];
     toInsert?: CompMatch;
     atStart?: number;
+}
+
+let _loadedHelpPages: HelpPage[] = [];
+export interface HelpPage{
+    title: string;
+    content: string;
+    type: string;
+}
+export function regHelp(pages: HelpPage[]){
+    _loadedHelpPages.push(...pages);
 }
 
 const _highlighter = new HefeHighlighter();

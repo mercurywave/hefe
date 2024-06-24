@@ -92,7 +92,7 @@ regFunc("modulo", 1, 1, ["by"], async (c, stream, pars) =>{
 regFunc("slice", 1, 2, ["start", "end"], async (c, stream, pars) =>{
     if(!stream.isText && !stream.isArray) throw "cannot slice stream - expected string or array";
     const start = (await pars[0].Eval(c, c.stream)).asNum();
-    let end = null;
+    let end = undefined;
     if(pars.length > 1) end = (await pars[1].Eval(c, c.stream)).asNum();
     if(stream.isText)
         return Stream.mkText(stream.asString().slice(start, end));

@@ -8,9 +8,8 @@ export class CommandPalette extends HTMLElement {
         <style>
             #command-palette {
                 position: fixed;
-                top: 5px;
-                left: 50%;
-                transform: translate(-50%, 0);
+                top: 10px;
+                left: 10px;
                 display: none;
                 width: 300px;
                 outline: 1px solid #fff;
@@ -171,7 +170,11 @@ export class CommandPalette extends HTMLElement {
     }
     
     public registerCommand(title: string, type: eCommandType, action: (input: string) => void, searchText: string){
-        let split = searchText.split(' ').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+        let split = searchText
+            .replace(/[^\w\s\']|_/g, "") // strip non-alphanumeric characters
+            .split(' ')
+            .map(s => s.trim().toLowerCase())
+            .filter(s => s.length > 0);
         let searchWords: Record<string, number> = {};
         for (const word of split) {
             searchWords[word] = (searchWords[word] ?? 0) + 1;
