@@ -3,12 +3,7 @@ export class Sidebar extends HTMLElement {
         <div id="sidebar">
             <div id="label">Help</div>
             <a href="javascript:void(0)" id="closebtn">×</a>
-            <div id="content">
-                <a href="#">About</a>
-                <a href="#">Services</a>
-                <a href="#">Clients</a>
-                <a href="#">Contact</a>
-            </div>
+            <div id="content"></div>
         </div>
         <style>
             #sidebar {
