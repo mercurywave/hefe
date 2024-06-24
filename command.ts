@@ -67,44 +67,46 @@ export class CommandPalette extends HTMLElement {
         </style>
     `);
 
-    private container: HTMLDivElement;
-    private input: HTMLInputElement;
-    private commandList: HTMLSelectElement;
+    private divContainer: HTMLDivElement;
+    private ctlInput: HTMLInputElement;
+    private divCommandList: HTMLSelectElement;
+    private database: Command[] = [];
+    private _index: Record<string, number> = {};
     private commands: Command[];
-    private noResults: HTMLDivElement;
+    private divNoResults: HTMLDivElement;
     
     constructor(){
         super();
         const shadow = this.attachShadow({mode: "open"});
         shadow.append(CommandPalette._tmplt.content.cloneNode(true));
-        this.container = shadow.querySelector("#command-palette");
-        this.input = shadow.querySelector("#command-input");
-        this.commandList = shadow.querySelector("#command-list");
-        this.noResults = shadow.querySelector("#unknown-text");
+        this.divContainer = shadow.querySelector("#command-palette");
+        this.ctlInput = shadow.querySelector("#command-input");
+        this.divCommandList = shadow.querySelector("#command-list");
+        this.divNoResults = shadow.querySelector("#unknown-text");
     }
 
     connectedCallback(){
-        this.input.addEventListener("input", () => {
-            this.showCommands(this.input.value);
+        this.ctlInput.addEventListener("input", () => {
+            this.showCommands(this.ctlInput.value);
         });
 
-        this.input.addEventListener("keydown", e => {
-            if(e.key === "Escape") { this.input.value = ""; this.hide(); }
+        this.ctlInput.addEventListener("keydown", e => {
+            if(e.key === "Escape") { this.ctlInput.value = ""; this.hide(); }
             if(e.key === "ArrowUp") { this.moveSelection(-1); e.preventDefault(); }
             if(e.key === "ArrowDown") { this.moveSelection(1); e.preventDefault(); }
             if(e.key === "Enter" ) { this.tryRunSelected(); }
         });
 
-        this.commandList.addEventListener("keydown", e => {
+        this.divCommandList.addEventListener("keydown", e => {
             if(e.key === "Enter" ) { this.tryRunSelected(); }
         });
 
-        this.commandList.addEventListener("click", e => {
+        this.divCommandList.addEventListener("click", e => {
             this.tryRunSelected();
         });
         
-        this.commandList.addEventListener("focus", e => {
-            this.input.focus();
+        this.divCommandList.addEventListener("focus", e => {
+            this.ctlInput.focus();
         });
 
         document.addEventListener("keydown", e => {
@@ -121,61 +123,98 @@ export class CommandPalette extends HTMLElement {
     }
 
     public show(){
-        this.showCommands(this.input.value);
-        this.container.style.display = "block";
-        this.input.focus();
+        this.showCommands(this.ctlInput.value);
+        this.divContainer.style.display = "block";
+        this.ctlInput.focus();
     }
     public hide(){
-        this.container.style.display = "none";
+        this.divContainer.style.display = "none";
     }
 
     private moveSelection(delta: number){
-        let prev = this.commandList.selectedIndex;
+        let prev = this.divCommandList.selectedIndex;
         let target = prev + delta;
         if(target < 0) target = 0;
         if(target >= this.commands.length) target = prev;
-        this.commandList.selectedIndex = target;
+        this.divCommandList.selectedIndex = target;
     }
 
     private tryRunSelected(){
-        let idx = this.commandList.selectedIndex;
+        let idx = this.divCommandList.selectedIndex;
         if(idx < 0 || idx >= this.commands.length) return;
         let cmd = this.commands[idx];
-        cmd.action(this.input.value);
+        cmd.action(this.ctlInput.value);
     }
 
     private showCommands(rawInput: string){
         this.commands = this.search(rawInput);
-        this.commandList.innerHTML = "";
+        this.divCommandList.innerHTML = "";
         for(var i = 0; i < this.commands.length; i++) {
             var item = document.createElement("option");
             item.textContent = this.commands[i].title;
-            this.commandList.appendChild(item);
+            this.divCommandList.appendChild(item);
         }
-        let num = this.commandList.children.length;
-        this.commandList.setAttribute("size", "" + (num > 1 ? num : 2));
-        if(num > 0) this.commandList.selectedIndex = 0;
-        this.commandList.style.display = (num > 0 ? "block" : "none");
-        this.noResults.style.display = (num > 0 ? "none" : "block");
+        let num = this.divCommandList.children.length;
+        this.divCommandList.setAttribute("size", "" + (num > 1 ? num : 2));
+        if(num > 0) this.divCommandList.selectedIndex = 0;
+        this.divCommandList.style.display = (num > 0 ? "block" : "none");
+        this.divNoResults.style.display = (num > 0 ? "none" : "block");
     }
 
     private search(rawInput: string): Command[] {
-        var filter = rawInput.toUpperCase();
-        let list:Command[] = [];
-        let commands = ["split", "join", "piece", "map"];
-        for(var i = 0; i < commands.length; i++) {
-            let cmd = commands[i];
-            if(cmd.toUpperCase().indexOf(filter) > -1) {
-                list.push({
-                    title: cmd,
-                    action: x => console.log(cmd),
-                    type: eCommandType.function
-                });
-            }
-        }
-        return list;
+        let keywords = rawInput.split(' ').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+        let scored : ScoredCommand[] = this.database
+            .map(c => {return { cmd:c, score: this.scoreSearch(keywords, c.searchWords) };})
+            .filter(s => s.score >= 10)
+            .sort((a,b) => b.score - a.score); // lower idx, higher score
+        return scored.slice(0,9).map(s => s.cmd);
     }
     
+    public registerCommand(title: string, type: eCommandType, action: (input: string) => void, searchText: string){
+        let split = searchText.split(' ').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+        let searchWords: Record<string, number> = {};
+        for (const word of split) {
+            searchWords[word] = (searchWords[word] ?? 0) + 1;
+        }
+        let cmd = {
+            title: title,
+            searchWords: searchWords,
+            action: action,
+            type: type
+        };
+        this.database.push(cmd);
+    }
+
+    public indexCommands(){
+        let max = 0;
+        let merge : Record<string, number> = {};
+        for (const cmd of this.database) {
+            for (const word of Object.keys(cmd.searchWords)) {
+                var amt = cmd.searchWords[word];
+                merge[word] = (merge[word] ?? 0) + amt;
+            }
+        }
+        for (const word of Object.keys(merge)) {
+            if(merge[word] > max) max = merge[word];
+        }
+        this._index = {};
+        for (const word of Object.keys(merge)) {
+            this._index[word] = 100 * (max - merge[word] + 1) / (max + 1);
+        }
+    }
+
+    private scoreSearch(keywords: string[], searchMap: Record<string, number>):number{
+        let score = 0;
+        for (const key of keywords) {
+            for (const comp of Object.keys(searchMap)) {
+                if(comp.startsWith(key)){
+                    let amt = searchMap[comp];
+                    score += amt * this._index[comp];
+                }
+            }
+        }
+        return score;
+    }
 }
 
 export enum eCommandType {
@@ -184,7 +223,13 @@ export enum eCommandType {
 export interface Command {
     type: eCommandType;
     title: string;
+    searchWords: Record<string, number>;
     action: (input: string) => void;
+}
+
+interface ScoredCommand {
+    cmd: Command;
+    score: number;
 }
 
 function mkTmplt(innerHtml): HTMLTemplateElement{

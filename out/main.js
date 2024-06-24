@@ -1,5 +1,6 @@
 import { Autocomplete } from "./code-input/auto-complete.js";
 import { CodeInput, Template } from "./code-input/code-input.js";
+import { eCommandType } from "./command.js";
 import { Interpreter } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
@@ -14,6 +15,8 @@ export class Workspace {
         this._inputTabValues = {};
         this._outputTabs = {};
         this._lblFile = document.querySelector("#lblFile");
+        this._ctlCommand = document.querySelector("#cmdMain");
+        this._ctlSidebar = document.querySelector("#sidebar");
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
         this._txtInput = document.querySelector("#txtInput");
@@ -35,6 +38,7 @@ export class Workspace {
         this.setupEditor(this._txtEditor);
         this._txtInput.value = "Yes|No|12|true\nNo|No|15|true\nYes|Yes|8|null";
         setTimeout(() => {
+            this.setupCommands();
             this.process();
         }, 0);
         this._tbEditor = document.querySelector("#tbSource");
@@ -49,6 +53,12 @@ export class Workspace {
                 this.process();
             }
         });
+    }
+    setupCommands() {
+        let input = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+        this._ctlCommand.registerCommand("Test", eCommandType.concept, i => this._ctlSidebar.show(input), input);
+        this._ctlCommand.registerCommand("Foo", eCommandType.concept, i => this._ctlSidebar.show("Foo!"), "foo");
+        this._ctlCommand.indexCommands();
     }
     setupEditor(area) {
         area.addEventListener("input", () => this.queueProcess());

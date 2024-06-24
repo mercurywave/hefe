@@ -8,11 +8,10 @@ export class Sidebar extends HTMLElement {
         <style>
             #sidebar {
                 height: 100%;
-                width: 0;
-                position: fixed;
-                z-index: 1;
                 top: 0;
-                right: 0;
+                width: 350px;
+                right: -350px;
+                position: fixed;
                 background-color: #111;
                 overflow-x: hidden;
                 transition: 0.5s;
@@ -86,9 +85,9 @@ export class Sidebar extends HTMLElement {
 
     public show(content: string){
         this.content.innerHTML = content; 
-        this.container.style.width = "350px";
+        this.container.style.right = "0";
     }
-    public hide(){ this.container.style.width = "0"; }
+    public hide(){ this.container.style.right = "-350px"; }
 }
 
 
