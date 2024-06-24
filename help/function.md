@@ -24,7 +24,7 @@ Given a string where the text is delimited by the delim string, returns the piec
 Given an input array stream, return the individual elemnt at the specified index.
 
 ### length()
-Returns the length of the input stream array.
+If the input string is an array, this returns the number of elements. If the input is a string, this returns the number of characters.
 
 ### contains(search)
 Returns true or false whether the input stream string contains the search substring.
@@ -83,3 +83,57 @@ Attempt to parse the input string stream into a real number that math can be per
 Given a map as the input stream, returns an array of keys of the map.
 
 Given an array, returns the keys of the array ([0,1,2,...]).
+
+### sortBy
+This subroutine takes an array. For each element, you give the element a score via the inner scope, and the final output will be sorted by the score you gave it. Higher scores will sort to a higher index.
+
+["ccc", "bb", "a", "dddd"]
+sortBy
+	length 
+// ["a", "bb", "ccc", "dddd"]
+
+// TODO: this doesn't work
+[4,3,1,2]
+sortBy 
+// [1,2,3,4]
+
+### sumBy
+This subroutine takes an array. For each element, you give the element a score via the inner scope. The final output is the total of all scores.
+
+["ccc", "bb", "a", "dddd"]
+sortBy
+	length 
+// ["a", "bb", "ccc", "dddd"]
+
+### map
+This subroutine expects an array. Each element of the array is processed by the inner scope, with that processing being returned into an array at the end.
+
+[1,2,3,4]
+map
+    stream + 1
+// [2,3,4,5]
+
+### filter
+This subroutine has you evaluate each element in the inner scope. For each element, process a boolean value to determine whether the element should be included in the final output.
+
+[1,2,3,4,5]
+filter
+    modulo(2) = 0
+// [2,4]
+
+### pivot
+Given an array, create a map that groups elements into a map. In the inner scope, calculate a key which will be used for clustering.
+
+[1,2,3,4,5]
+pivot
+    modulo(2)
+//{
+//  0 : [2,4],
+//  1 : [1,3,5]
+//}
+
+### do
+This subroutine simply passes through the input and outputs the work of the inner scope. It might be useful for code organization in some cases.
+
+### exit
+Halts script execution immediately, similar to entering debug mode on a line.

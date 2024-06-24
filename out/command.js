@@ -102,6 +102,7 @@ export class CommandPalette extends HTMLElement {
     }
     registerCommand(title, type, action, searchText) {
         let split = searchText
+            .replaceAll("\n", " ")
             .replace(/[^\w\s\']|_/g, "") // strip non-alphanumeric characters
             .split(' ')
             .map(s => s.trim().toLowerCase())

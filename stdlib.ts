@@ -50,7 +50,8 @@ regFunc("at", 1, 1, ["index"], async (c, stream, pars) =>{
 });
 
 regFunc("length", 0, 0, [], async (c, stream, pars) => {
-    if(!stream.isArray) throw "cannot count length of stream - expected array";
+    if(!stream.isArray && !stream.isText) throw "cannot count length of stream - expected array or string";
+    if(stream.isText) return Stream.mkNum(stream.asString().length);
     return Stream.mkNum(stream.asArray().length);
 });
 
