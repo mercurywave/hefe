@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="code-input/code-input.css">
     <script src="out/code-input/code-input.js" type="module"></script>
     <script src="out/tabstrip.js" type="module"></script>
+    <script src="out/command.js" type="module"></script>
     <script src="out/main.js" type="module"></script>
 </head>
 <body>
@@ -18,19 +19,20 @@
         </div>
         <div id="inputPane"class="tabbedPane">
             <textarea id="txtInput" spellcheck="false" class="txtIn txtPanel txt"></textarea>
-            <tab-strip id="tbInput" />
+            <tab-strip id="tbInput"></tab-strip>
         </div>
         <div id="outputPane" class="tabbedPane">
             <textarea id="txtOutput" spellcheck="false" class="txtOut txtPanel txt"></textarea>
-            <tab-strip id="tbOutput" />
+            <tab-strip id="tbOutput"></tab-strip>
         </div>
         <div id="lblError"></div>
         <div id="sourcePane" class="tabbedPane">
             <div class="editorBox">
                 <code-input id="txtSource" class="ed" template="def"></code-input>
             </div>
-            <tab-strip id="tbSource" />
+            <tab-strip id="tbSource"></tab-strip>
         </div>
+        <command-palette id="cmdMain"> </command-palette>
     </div>
 </body>
 </html>

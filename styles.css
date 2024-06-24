@@ -4,6 +4,7 @@ body {
     color: #FFF;
     margin-left: 5px;
     overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 #toolbar{
     position: fixed;
