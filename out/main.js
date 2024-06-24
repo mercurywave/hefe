@@ -66,7 +66,7 @@ export class Workspace {
             let search = help.title + "\n" + help.content;
             let content = `
                 <h1>${help.title}</h1>
-                <div>${help.content}</div>
+                <div>${help.content.replace("\n", "<br /><br />")}</div>
             `;
             this._ctlCommand.registerCommand(help.title, type, i => this._ctlSidebar.show(content), search);
         }
