@@ -567,8 +567,9 @@ class EIdentifier extends IExpression{
         this.name = parse.getSingleKey("ident");
     }
     public async Eval(context: ExecutionContext, stream: Stream): Promise<Stream> {
+        let dynFunc = context.__state.functionDefs[this.name];
         let func = _builtInFuncs[this.name];
-        if(func != null){
+        if(func != null || dynFunc != null){
             return await EFunctionCall.runFunc(this.name, [], context, stream);
         }
         if(stream != context.stream) throw `cannot evaluate ${this.name} as a method`;

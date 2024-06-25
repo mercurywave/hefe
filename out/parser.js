@@ -551,8 +551,9 @@ class EIdentifier extends IExpression {
         this.name = parse.getSingleKey("ident");
     }
     async Eval(context, stream) {
+        let dynFunc = context.__state.functionDefs[this.name];
         let func = _builtInFuncs[this.name];
-        if (func != null) {
+        if (func != null || dynFunc != null) {
             return await EFunctionCall.runFunc(this.name, [], context, stream);
         }
         if (stream != context.stream)
