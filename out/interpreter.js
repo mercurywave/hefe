@@ -26,10 +26,7 @@ export class Interpreter {
                 return null;
             state.statementLine++;
         }
-        if (state.expectingInnerScope)
-            await state.checkAutoCloseStack(state.lastStatement);
-        while (state.depth > 1)
-            await state.popStack();
+        state.wrapUp();
         return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
     }
     static async RunOneLine(state) {
@@ -38,11 +35,11 @@ export class Interpreter {
             return true;
         if (step == null)
             throw "could not parse line: " + state.statementLine;
-        if (step.tabDepth + 1 > state.depth && state.lastStatement)
+        if (step.scopeDepth + 1 > state.depth && state.lastStatement)
             await state.pushStack(state.lastStatement);
         else if (state.expectingInnerScope)
             await state.checkAutoCloseStack(state.lastStatement);
-        while (state.depth > step.tabDepth + 1)
+        while (state.depth > step.scopeDepth + 1)
             await state.popStack();
         if (step instanceof ICanHaveScope)
             state.expectingInnerScope = true;
@@ -54,9 +51,9 @@ export class Interpreter {
         return true;
     }
     static async ProcessInnerScope(state, stream) {
-        let curDepth = state.currStatement.tabDepth;
+        let curDepth = state.currStatement.scopeDepth;
         while (state.statementLine < state.__code.length) {
-            if (state.nextStatement?.tabDepth <= curDepth) {
+            if (state.nextStatement?.scopeDepth <= curDepth) {
                 return true;
             }
             state.statementLine++;
@@ -82,24 +79,29 @@ export class Interpreter {
             state.setGlobalVal(func.params[index], params[index]);
         }
         let currGen = this.__gen;
+        // don't want to halt because of a breakpoint above the function
+        let debugLine = state.__debugLine;
+        if (debugLine < state.statementLine)
+            debugLine = 99999999;
         while (state.statementLine < state.__code.length) {
             try {
+                if (state.currFileLine > debugLine) {
+                    return state.exportAsStream();
+                }
                 let canGo = await Interpreter.RunOneLine(state);
-                if (state.currFileLine == interpreter.__debugLine)
-                    canGo = false;
                 if (!canGo) {
                     return state.exportAsStream();
                 }
             }
             catch (err) {
-                throw new Error(`error in function ${func.name}: ${err}`);
+                console.log(err);
+                throw new Error(`error in function ${func.name}: ${err.message}`);
             }
             if (currGen != this.__gen)
                 return null;
             state.statementLine++;
         }
-        while (state.depth > 1)
-            await state.popStack();
+        await state.wrapUp();
         return state.exportAsStream();
     }
 }
@@ -196,6 +198,12 @@ export class InterpreterState {
             return;
         await this.pushStack(laststate);
         await this.popStack();
+    }
+    async wrapUp() {
+        if (this.expectingInnerScope)
+            await this.checkAutoCloseStack(this.lastStatement);
+        while (this.depth > 1)
+            await this.popStack();
     }
     exportAsStream() {
         if (this.depth == 1)

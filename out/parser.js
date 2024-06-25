@@ -122,14 +122,14 @@ export class Parser {
 export class ParseContext {
     constructor() {
         this.Statements = [];
-        this.currLineDepth = 0;
         this.functionDefs = {};
         this.identifiers = new Set();
         this._parseStateFunc = null;
+        this._scopes = [];
     }
     push(statement) {
         if (this._parseStateFunc) {
-            statement.tabDepth--;
+            statement.scopeDepth -= 1;
             this._parseStateFunc.registerChildLine(statement);
         }
         else if (statement instanceof SFunctionDef) {
@@ -138,35 +138,32 @@ export class ParseContext {
         else {
             this.Statements.push(statement);
         }
+        while (statement.tabDepth <= this.currScopeTabDepth && this._scopes.length > 0)
+            this._scopes.pop();
+        if (statement.tabDepth >= this.currScopeTabDepth)
+            this._scopes.push(statement);
     }
     prepNewLine(lex) {
+        this.lex = lex;
         if (lex.TabDepth == 0)
             this._parseStateFunc = null;
-        this.currLineDepth = this.getDepth(lex.TabDepth);
     }
     registerIdent(ident) { this.identifiers.add(ident); }
-    getScope(tabDepth) {
-        if (tabDepth == 0)
-            return null;
-        for (let index = this.Statements.length - 1; index >= 0; index--) {
-            const state = this.Statements[index];
-            if (state.tabDepth < tabDepth)
-                return state;
-        }
-        return null;
+    get currScopeTabDepth() {
+        return this.currScope?.tabDepth ?? 0;
     }
-    getDepth(tabDepth) {
-        let count = 0;
-        for (let index = this.Statements.length - 1; index >= 0; index--) {
-            const state = this.Statements[index];
-            if (!state)
-                return count;
-            if (state.tabDepth < tabDepth) {
-                count++;
-                tabDepth = state.tabDepth;
-            }
+    get currScope() {
+        return (this._scopes.length > 0 ? this._scopes[this._scopes.length - 1] : null);
+    }
+    getScopeDepth(tabDepth) {
+        for (let index = this._scopes.length - 1; index >= 0; index--) {
+            const scope = this._scopes[index];
+            if (tabDepth > scope.tabDepth)
+                return index + 1;
+            if (tabDepth == scope.tabDepth)
+                return index;
         }
-        return count;
+        return 0;
     }
     registerFunction(func) {
         this._parseStateFunc = func;
@@ -211,7 +208,8 @@ const _expressionComps = new Syntax()
     .add([token("["), expressionLike(), token("]")], (con, res) => new EArrayDef(con, res));
 export class IStatement {
     constructor(context) {
-        this.tabDepth = context.currLineDepth;
+        this.tabDepth = context.lex.TabDepth;
+        this.scopeDepth = context.getScopeDepth(this.tabDepth);
     }
 }
 export class ICanHaveScope extends IStatement {

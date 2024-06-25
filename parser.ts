@@ -114,44 +114,43 @@ export class Parser{
 
 export class ParseContext{
     public Statements: IStatement[] = [];
-    public currLineDepth: number = 0;
     public functionDefs: Record<string, SFunctionDef> = {};
     public identifiers: Set<string> = new Set();
+    public lex: LexLine;
     private _parseStateFunc: SFunctionDef = null;
+    private _scopes: IStatement[] = [];
     public push(statement: IStatement){
         if(this._parseStateFunc) {
-            statement.tabDepth--;
+            statement.scopeDepth -= 1;
             this._parseStateFunc.registerChildLine(statement);
         } else if(statement instanceof SFunctionDef) {
             this.registerFunction(statement);
         } else {
             this.Statements.push(statement);
         }
+        while(statement.tabDepth <= this.currScopeTabDepth && this._scopes.length > 0)
+            this._scopes.pop();
+        if(statement.tabDepth >= this.currScopeTabDepth)
+            this._scopes.push(statement);
     }
     public prepNewLine(lex: LexLine){
+        this.lex = lex;
         if(lex.TabDepth == 0) this._parseStateFunc = null;
-        this.currLineDepth = this.getDepth(lex.TabDepth);
     }
     public registerIdent(ident: string){ this.identifiers.add(ident); }
-    public getScope(tabDepth: number):IStatement | null{
-        if(tabDepth == 0) return null;
-        for (let index = this.Statements.length - 1; index >= 0; index--) {
-            const state = this.Statements[index];
-            if(state.tabDepth < tabDepth) return state;
-        }
-        return null;
+    private get currScopeTabDepth(): number {
+        return this.currScope?.tabDepth ?? 0;
     }
-    public getDepth(tabDepth: number): number{
-        let count = 0;
-        for (let index = this.Statements.length - 1; index >= 0; index--) {
-            const state = this.Statements[index];
-            if(!state) return count;
-            if(state.tabDepth < tabDepth) {
-                count++;
-                tabDepth = state.tabDepth;
-            }
+    private get currScope(): IStatement | null {
+        return (this._scopes.length > 0 ? this._scopes[this._scopes.length -1 ] : null);
+    }
+    public getScopeDepth(tabDepth: number): number{
+        for (let index = this._scopes.length - 1; index >= 0; index--) {
+            const scope = this._scopes[index];
+            if(tabDepth > scope.tabDepth) return index + 1;
+            if(tabDepth == scope.tabDepth) return index;
         }
-        return count;
+        return 0;
     }
     public registerFunction(func: SFunctionDef){
         this._parseStateFunc = func;
@@ -203,10 +202,12 @@ const _expressionComps = new Syntax<string, ExpressionGenerator>()
 ;
 
 export abstract class IStatement{
-    tabDepth: number;
+    tabDepth: number; // actual number of tab / space characters in front
+    scopeDepth: number; // conceptual depth of line
     fileLine: number;
     public constructor(context: ParseContext){
-        this.tabDepth = context.currLineDepth;
+        this.tabDepth = context.lex.TabDepth;
+        this.scopeDepth = context.getScopeDepth(this.tabDepth);
     }
     public abstract process(context: ExecutionContext):Promise<void>;
 }

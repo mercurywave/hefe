@@ -135,18 +135,18 @@ export class Stream {
             case "boolean": return this.mkBool(val);
             default:
                 if (val == null)
-                    throw 'did not expect null stream';
+                    throw new Error('did not expect null stream');
                 if (Array.isArray(val))
                     return this.mkArr(val);
                 if (val instanceof Map)
                     return this.mkMap(val);
-                throw `could not create stream from ${val}`;
+                throw new Error(`could not create stream from ${val}`);
         }
     }
     asNum() {
         if (this.num !== null)
             return this.num;
-        throw 'cannot cast to number';
+        throw new Error('cannot cast to number');
     }
     asString() {
         if (this.text !== null)
@@ -155,24 +155,24 @@ export class Stream {
             return "" + this.num;
         if (this.bool !== null)
             return "" + this.bool;
-        throw 'cannot cast to string';
+        throw new Error('cannot cast to string');
     }
     asBool() {
         if (this.bool !== null)
             return this.bool;
         if (this.num !== null)
             return this.num != 0;
-        throw 'cannot cast to bool';
+        throw new Error('cannot cast to bool');
     }
     asArray() {
         if (this.array !== null)
             return this.array; // caution! original reference!
-        throw 'cannot cast to array';
+        throw new Error('cannot cast to array');
     }
     asMap() {
         if (this.isMap)
             return this.map;
-        throw 'cannot cast to map';
+        throw new Error('cannot cast to map');
     }
     get isNum() { return this.num !== null; }
     get isText() { return this.text !== null; }
