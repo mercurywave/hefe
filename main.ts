@@ -94,9 +94,9 @@ export class Workspace {
     private setupCommands(){
         for (const help of _loadedHelpPages) {
             let type = eCommandType.concept;
-            if(help.type === "Functions") type = eCommandType.function;
-            if(help.type === "concept") type = eCommandType.concept;
-            if(help.type === "howto") type = eCommandType.howTo;
+            if(help.type === "functions") type = eCommandType.function;
+            if(help.type === "concepts") type = eCommandType.concept;
+            if(help.type === "how to") type = eCommandType.howTo;
             let search = help.title + "\n" + help.content;
             let content = `
                 <h1>${help.title}</h1>

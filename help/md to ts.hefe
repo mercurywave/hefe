@@ -3,7 +3,7 @@
 replace("    ","\t")
 replace("\t","&nbsp;&nbsp;&nbsp;&nbsp;")
 split("###")
-fn << at(0) : replace("#","") : piece("\n",1) : trim
+fn << at(0) : replace("#","") : piece("\n",1) : trim : toLower
 slice(1)
 map
 	trim

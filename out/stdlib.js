@@ -72,6 +72,16 @@ regFunc("endsWith", 1, 1, ["search"], async (c, stream, pars) => {
     const target = await pars[0].EvalAsText(c);
     return Stream.mkBool(stream.text.endsWith(target));
 });
+regFunc("toLower", 0, 0, [], async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "toLower expects string";
+    return Stream.mkText(stream.text.toLowerCase());
+});
+regFunc("toUpper", 0, 0, [], async (c, stream, pars) => {
+    if (!stream.isText)
+        throw "toUpper expects string";
+    return Stream.mkText(stream.text.toUpperCase());
+});
 regFunc("trim", 0, 0, [], async (c, stream, pars) => {
     if (!stream.isText)
         throw "cannot trim stream - expected string";

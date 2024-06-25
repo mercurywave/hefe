@@ -35,6 +35,12 @@ Returns true or false whether the input stream string begins with the search sub
 ### endsWith(search)
 Returns true or false whether the input stream string ends with the search substring.
 
+### toLower()
+Given a string, returns that string with all characters converted to lower case.
+
+### toUpper()
+Given a string, returns that string with all characters converted to upper case.
+
 ### trim()
 Trims whitespace characters from the start and end of the input stream string.
 
