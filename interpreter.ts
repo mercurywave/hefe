@@ -31,6 +31,8 @@ export class Interpreter{
             if(currGen != this.__gen) return null;
             state.statementLine++;
         }
+        if(state.expectingInnerScope)
+            await state.checkAutoCloseStack(state.lastStatement);
         while(state.depth > 1)
             await state.popStack();
         return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.statementLine, isComplete: true};
@@ -38,13 +40,20 @@ export class Interpreter{
 
     static async RunOneLine(state:InterpreterState): Promise<boolean>{
         let step = state.__code[state.statementLine];
-        if(step instanceof SNoop) return true;
-        if(step == null) throw "could not parse line: " + state.statementLine;
+        if(step instanceof SNoop)
+            return true;
+        if(step == null)
+            throw "could not parse line: " + state.statementLine;
         if(step.tabDepth + 1 > state.depth && state.lastStatement)
-        await state.pushStack(state.lastStatement);
+            await state.pushStack(state.lastStatement);
+        else if(state.expectingInnerScope)
+            await state.checkAutoCloseStack(state.lastStatement);
         while(state.depth > step.tabDepth + 1)
-        await state.popStack();
-        if(step instanceof SExit) return false;
+            await state.popStack();
+        if(step instanceof ICanHaveScope)
+            state.expectingInnerScope = true;
+        if(step instanceof SExit)
+            return false;
         await Interpreter.parallelProcess(state, step);
         state.lastStatement = step;
         await new Promise(f => setTimeout(f, 1));
@@ -142,6 +151,7 @@ export class InterpreterState{
     public functionDefs: Record<string, SFunctionDef>;
     public statementLine: number = 0;
     public lastStatement: IStatement = null; // last actually evaluated statement - ignores nulls
+    public expectingInnerScope: boolean = false;
     public get currStatement(): IStatement | null { return this.__code[this.statementLine]; }
     public get nextStatement(): IStatement | null { return this.__code[this.statementLine + 1]; }
     public get currFileLine(): number {return this.currStatement.fileLine; }
@@ -179,6 +189,7 @@ export class InterpreterState{
 
     public async pushStack(state: IStatement): Promise<void>{
         if (!(state instanceof ICanHaveScope)) throw 'inner scope is unexpected';
+        this.expectingInnerScope = false;
         let list = this.getCurrChains();
         for (const [chain, leaf] of list) {
             const context = new ExecutionContext(chain, this);
@@ -188,6 +199,7 @@ export class InterpreterState{
         this.__scopes.push(state); // run after because this affects depth calculation
     }
     public async popStack(): Promise<void>{
+        this.expectingInnerScope = false;
         let owner = this.__scopes.pop();
         // since we popped, the leafs have branches
         let list = this.getCurrChains();
@@ -198,6 +210,11 @@ export class InterpreterState{
             context.updateStream(result);
             leaf.branches = null;
         }
+    }
+    public async checkAutoCloseStack(laststate: IStatement): Promise<void>{
+        if (!(laststate instanceof ICanHaveScope)) return;
+        await this.pushStack(laststate);
+        await this.popStack();
     }
 
     public exportAsStream(): Stream{

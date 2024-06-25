@@ -26,6 +26,8 @@ export class Interpreter {
                 return null;
             state.statementLine++;
         }
+        if (state.expectingInnerScope)
+            await state.checkAutoCloseStack(state.lastStatement);
         while (state.depth > 1)
             await state.popStack();
         return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
@@ -38,8 +40,12 @@ export class Interpreter {
             throw "could not parse line: " + state.statementLine;
         if (step.tabDepth + 1 > state.depth && state.lastStatement)
             await state.pushStack(state.lastStatement);
+        else if (state.expectingInnerScope)
+            await state.checkAutoCloseStack(state.lastStatement);
         while (state.depth > step.tabDepth + 1)
             await state.popStack();
+        if (step instanceof ICanHaveScope)
+            state.expectingInnerScope = true;
         if (step instanceof SExit)
             return false;
         await Interpreter.parallelProcess(state, step);
@@ -132,6 +138,7 @@ export class InterpreterState {
         this.__scopes = [null];
         this.statementLine = 0;
         this.lastStatement = null; // last actually evaluated statement - ignores nulls
+        this.expectingInnerScope = false;
         this.__root = new StackBranch(stream, 0);
         this.__code = code;
         this.functionDefs = funcs;
@@ -162,6 +169,7 @@ export class InterpreterState {
     async pushStack(state) {
         if (!(state instanceof ICanHaveScope))
             throw 'inner scope is unexpected';
+        this.expectingInnerScope = false;
         let list = this.getCurrChains();
         for (const [chain, leaf] of list) {
             const context = new ExecutionContext(chain, this);
@@ -171,6 +179,7 @@ export class InterpreterState {
         this.__scopes.push(state); // run after because this affects depth calculation
     }
     async popStack() {
+        this.expectingInnerScope = false;
         let owner = this.__scopes.pop();
         // since we popped, the leafs have branches
         let list = this.getCurrChains();
@@ -181,6 +190,12 @@ export class InterpreterState {
             context.updateStream(result);
             leaf.branches = null;
         }
+    }
+    async checkAutoCloseStack(laststate) {
+        if (!(laststate instanceof ICanHaveScope))
+            return;
+        await this.pushStack(laststate);
+        await this.popStack();
     }
     exportAsStream() {
         if (this.depth == 1)

@@ -98,9 +98,10 @@ sortBy
 	length 
 // ["a", "bb", "ccc", "dddd"]
 
-// TODO: this doesn't work
+If no inner scope is passed, the array will be sorted by the value of each node.
+
 [4,3,1,2]
-sortBy 
+sortBy
 // [1,2,3,4]
 
 ### sumBy
