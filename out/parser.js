@@ -172,7 +172,7 @@ export class ParseContext {
     }
 }
 const _keywordStatements = ["map", "filter",
-    "sortBy", "sumBy", "exit", "stream",
+    "sortBy", "sumBy", "exit", "stream", "fileName",
     "index", "true", "false", "pivot", "function"];
 const _scopeStatements = new Syntax()
     .addAnyOf(scopeStatement("sortBy"), (con, res) => new SSortBy(con, res))

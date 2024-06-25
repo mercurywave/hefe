@@ -160,7 +160,7 @@ export class ParseContext{
 }
 
 const _keywordStatements = ["map", "filter",
-        "sortBy", "sumBy", "exit", "stream",
+        "sortBy", "sumBy", "exit", "stream", "fileName",
         "index", "true", "false", "pivot", "function"];
 type StatementGenerator = (con: ParseContext, result: PatternResult<string>) => IStatement;
 const _scopeStatements = new Syntax<string, StatementGenerator>()
