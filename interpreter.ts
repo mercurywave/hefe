@@ -26,7 +26,7 @@ export class Interpreter{
                 let canGo = await Interpreter.RunOneLine(state);
                 if(!canGo) { return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.statementLine, isComplete: true}; }
             } catch(err){
-                return {output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: false, error: err};
+                return {output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: false, error: new LineError(err, state.currFileLine)};
             }
             if(currGen != this.__gen) return null;
             state.statementLine++;
@@ -101,7 +101,7 @@ export interface TransformResult{
     variables: Record<string, Stream>;
     step: number;
     isComplete: boolean;
-    error?: string
+    error?: Error;
 }
 
 export class ExecutionContext{
@@ -255,5 +255,13 @@ class StackBranch{
         if(this.__branches == null)
             this.__branches = [];
         this.__branches.push(leaf);
+    }
+}
+
+export class LineError extends Error{
+    public Line: number;
+    constructor(msg:string, line: number){
+        super(msg);
+        this.Line = line;
     }
 }

@@ -38,6 +38,8 @@ export class CodeInput extends HTMLElement{
         }
     }
 
+    public refresh() { this.update(this.value); }
+
     /* Syntax-highlighting functions */
     update(text) {
         if(!this.template) return;

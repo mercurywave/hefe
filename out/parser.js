@@ -1,4 +1,4 @@
-import { Interpreter } from "./interpreter.js";
+import { Interpreter, LineError } from "./interpreter.js";
 import { Lexer } from "./Lexer.js";
 import { Match, pattern, Syntax } from "./patterns.js";
 import { Stream } from "./stream.js";
@@ -8,10 +8,15 @@ export class Parser {
         let context = new ParseContext();
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
-            let state = this.ParseLine(context, code);
-            if (state)
-                state.fileLine = ln;
-            context.push(state);
+            try {
+                let state = this.ParseLine(context, code);
+                if (state)
+                    state.fileLine = ln;
+                context.push(state);
+            }
+            catch (err) {
+                throw new LineError(err, ln);
+            }
         }
         return context;
     }

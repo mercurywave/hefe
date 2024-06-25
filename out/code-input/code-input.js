@@ -23,6 +23,7 @@ export class CodeInput extends HTMLElement {
             }
         }
     }
+    refresh() { this.update(this.value); }
     /* Syntax-highlighting functions */
     update(text) {
         if (!this.template)

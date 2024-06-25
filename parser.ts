@@ -1,4 +1,4 @@
-import { ExecutionContext, Interpreter } from "./interpreter.js";
+import { ExecutionContext, Interpreter, LineError } from "./interpreter.js";
 import { Lexer, LexLine } from "./Lexer.js";
 import { CompMatch } from "./main.js";
 import { Match, pattern, PatternResult, SingleMatch, Syntax } from "./patterns.js";
@@ -10,9 +10,12 @@ export class Parser{
         let context = new ParseContext();
         for (let ln = 0; ln < lines.length; ln++) {
             const code = lines[ln];
-            let state = this.ParseLine(context, code);
-            if(state) state.fileLine = ln;
-            context.push(state);
+            try {
+                let state = this.ParseLine(context, code);
+                if(state) state.fileLine = ln;
+                context.push(state);
+            } 
+            catch(err) { throw new LineError(err, ln); }
         }
         return context;
     }

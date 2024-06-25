@@ -1,7 +1,7 @@
 import { Autocomplete } from "./code-input/auto-complete.js";
 import { CodeInput, Template } from "./code-input/code-input.js";
 import { CommandPalette, eCommandType } from "./command.js";
-import { Interpreter } from "./interpreter.js";
+import { Interpreter, LineError } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import { Sidebar } from "./sidebar.js";
@@ -384,6 +384,8 @@ export class Workspace {
                 }
 
                 this._lblError.textContent = "";
+                this.ErrorLine = 99999999;
+                this._txtEditor.refresh();
             }
         } catch(err){this.ShowError(err);}
     }
@@ -402,9 +404,13 @@ export class Workspace {
         console.log("copied to clipboard");
     }
 
-    private ShowError(err){
+    private ShowError(err:Error){
+        if(err instanceof LineError){
+            this.ErrorLine = err.Line;
+            this._txtEditor.refresh();
+        }
         console.log("error:", err);
-        this._lblError.textContent = err;
+        this._lblError.textContent = err.message;
     }
 }
 
@@ -477,6 +483,10 @@ class HefeHighlighter extends Template{
             if(i == this._workspace.DebugLine){
                 htmlResult.push(`<span style="color:#F1D815">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
                 continue;
+            }
+            if(i == this._workspace.ErrorLine){
+                htmlResult.push(`<span style="color:#BF4938">${ctl.escape_html(code + "  <<ERROR>>")}</span>`);
+                continue;   
             }
             try{
                 let lex = Lexer.Tokenize(code);
