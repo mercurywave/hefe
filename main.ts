@@ -13,6 +13,9 @@ const INPUT = "Input";
 
 export class Workspace {
     
+    public DebugLine: number = 99999999;
+    public ErrorLine: number = 99999999;
+    
     private _lblFile : HTMLHeadingElement;
     private _lblError : HTMLHeadingElement;
     private _btCopy : HTMLInputElement;
@@ -138,8 +141,8 @@ export class Workspace {
                         if(pos <= ln) break;
                         pos -= (ln + 1);
                     }
-                    if(_highlighter.DebugLine == curY) curY = 99999999;
-                    _highlighter.DebugLine = curY;
+                    if(this.DebugLine == curY) curY = 99999999;
+                    this.DebugLine = curY;
                     area.update(area.value);
                     this.process();
                     e.preventDefault();
@@ -322,7 +325,7 @@ export class Workspace {
                 this._selectedScript.Save();
             }
             
-            this.asyncProcess(code, _highlighter.DebugLine);
+            this.asyncProcess(code, this.DebugLine);
         }
         catch(err){
             this.ShowError(err);
@@ -457,10 +460,11 @@ interface IScriptJson {
 class HefeHighlighter extends Template{
     static CustomSymbols: CompMatch[] = [];
     static BuiltInSymbols: CompMatch[];
-    public DebugLine: number = 99999999;
-    public constructor()
+    private _workspace: Workspace;
+    public constructor(workSpace: Workspace)
     {
         super(true, true, true, [new Autocomplete(HefeHighlighter.updatePopup)]);
+        this._workspace = workSpace;
         HefeHighlighter.BuiltInSymbols = Interpreter.getBuiltinSymbols();
     }
     public highlight(resultElement: Element, ctl?: CodeInput): void {
@@ -470,7 +474,7 @@ class HefeHighlighter extends Template{
         for (let i = 0; i < lines.length; i++) {
             if(i > 0) htmlResult.push("</br>");
             let code = lines[i];
-            if(i == this.DebugLine){
+            if(i == this._workspace.DebugLine){
                 htmlResult.push(`<span style="color:#F1D815">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
                 continue;
             }
@@ -599,10 +603,9 @@ export function regHelp(pages: HelpPage[]){
     _loadedHelpPages.push(...pages);
 }
 
-const _highlighter = new HefeHighlighter();
-CodeInput.registerTemplate("def", _highlighter);
-
 let _instance : Workspace;
 document.addEventListener("DOMContentLoaded", () => {
     _instance = new Workspace();
+    const _highlighter = new HefeHighlighter(_instance);
+    CodeInput.registerTemplate("def", _highlighter);
 });

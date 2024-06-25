@@ -9,6 +9,8 @@ const STREAM = "stream";
 const INPUT = "Input";
 export class Workspace {
     constructor() {
+        this.DebugLine = 99999999;
+        this.ErrorLine = 99999999;
         this._loadedScripts = [];
         this._scriptTabs = {};
         this._processOnVisible = false;
@@ -104,9 +106,9 @@ export class Workspace {
                             break;
                         pos -= (ln + 1);
                     }
-                    if (_highlighter.DebugLine == curY)
+                    if (this.DebugLine == curY)
                         curY = 99999999;
-                    _highlighter.DebugLine = curY;
+                    this.DebugLine = curY;
                     area.update(area.value);
                     this.process();
                     e.preventDefault();
@@ -290,7 +292,7 @@ export class Workspace {
                 this._selectedScript.Code = code;
                 this._selectedScript.Save();
             }
-            this.asyncProcess(code, _highlighter.DebugLine);
+            this.asyncProcess(code, this.DebugLine);
         }
         catch (err) {
             this.ShowError(err);
@@ -408,9 +410,9 @@ class Script {
     }
 }
 class HefeHighlighter extends Template {
-    constructor() {
+    constructor(workSpace) {
         super(true, true, true, [new Autocomplete(HefeHighlighter.updatePopup)]);
-        this.DebugLine = 99999999;
+        this._workspace = workSpace;
         HefeHighlighter.BuiltInSymbols = Interpreter.getBuiltinSymbols();
     }
     highlight(resultElement, ctl) {
@@ -421,7 +423,7 @@ class HefeHighlighter extends Template {
             if (i > 0)
                 htmlResult.push("</br>");
             let code = lines[i];
-            if (i == this.DebugLine) {
+            if (i == this._workspace.DebugLine) {
                 htmlResult.push(`<span style="color:#F1D815">${ctl.escape_html(code + "  <<DEBUG>>")}</span>`);
                 continue;
             }
@@ -526,10 +528,10 @@ let _loadedHelpPages = [];
 export function regHelp(pages) {
     _loadedHelpPages.push(...pages);
 }
-const _highlighter = new HefeHighlighter();
-CodeInput.registerTemplate("def", _highlighter);
 let _instance;
 document.addEventListener("DOMContentLoaded", () => {
     _instance = new Workspace();
+    const _highlighter = new HefeHighlighter(_instance);
+    CodeInput.registerTemplate("def", _highlighter);
 });
 //# sourceMappingURL=main.js.map

@@ -40,6 +40,7 @@ export class CodeInput extends HTMLElement{
 
     /* Syntax-highlighting functions */
     update(text) {
+        if(!this.template) return;
         if(this.value != text) this.value = text; // Change value attribute if necessary.
         if(this.querySelector("textarea").value != text) this.querySelector("textarea").value = text; 
 
