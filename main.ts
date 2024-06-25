@@ -94,13 +94,13 @@ export class Workspace {
     private setupCommands(){
         for (const help of _loadedHelpPages) {
             let type = eCommandType.concept;
-            if(help.type === "function") type = eCommandType.function;
+            if(help.type === "Functions") type = eCommandType.function;
             if(help.type === "concept") type = eCommandType.concept;
             if(help.type === "howto") type = eCommandType.howTo;
             let search = help.title + "\n" + help.content;
             let content = `
                 <h1>${help.title}</h1>
-                <div>${help.content.replaceAll("\t", "&nbsp;&nbsp;&nbsp;&nbsp;").replaceAll("\n", "<br />")}</div>
+                <div>${help.content}</div>
             `;
             this._ctlCommand.registerCommand(help.title, type, i => this._ctlSidebar.show(content), search);
         }

@@ -1,14 +1,16 @@
 // this script converts the .md files in the help folder into typescript output that can be loaded by hefe
 // drag and drop the file (uses the file name for attribution)
 replace("    ","\t")
+replace("\t","&nbsp;&nbsp;&nbsp;&nbsp;")
 split("###")
+fn << at(0) : replace("#","") : piece("\n",1) : trim
 slice(1)
 map
 	trim
 	split
 	title << at(0) : escape()
 	content << slice(1) : join("<br />") : escape()
-	"\t{title:\"" + title + "\",content:\"" + content + "\",type:\"" + fileName:piece(".",1) + "\"}"
+	"\t{title:\"" + title + "\",content:\"" + content + "\",type:\"" + fn + "\"}"
 join(",\n")
 
 "import { regHelp } from \"../main.js\";\nregHelp([\n" + stream + "\n]);"

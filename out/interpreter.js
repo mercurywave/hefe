@@ -10,10 +10,11 @@ export class Interpreter {
         this.__gen++;
         let currGen = this.__gen;
         while (state.statementLine < state.__code.length) {
+            if (state.currFileLine > state.__debugLine) {
+                return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
+            }
             try {
                 let canGo = await Interpreter.RunOneLine(state);
-                if (state.currFileLine == state.__debugLine)
-                    canGo = false;
                 if (!canGo) {
                     return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
                 }
