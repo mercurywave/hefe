@@ -21,6 +21,8 @@ export class Workspace {
         this._ctlSidebar = document.querySelector("#sidebar");
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
+        let btHelp = document.querySelector("#btHelp");
+        btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(), 0); });
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);
         this._tbInput = document.querySelector("#tbInput");

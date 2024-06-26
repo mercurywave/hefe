@@ -12,6 +12,20 @@ body {
     right: 0;
     padding: 10px;
 }
+.tbButton {
+    border: .5px solid #aaa;
+    background-color: #3E3D5F;
+    color: #FFF;
+    padding: 5px 20px;
+    font-size: 12px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    cursor: pointer;
+}
+.tbButton:hover{
+    background-color: #646281;
+}
 .txt{
     background-color: #3E3D5F;
     color: #FFF;
