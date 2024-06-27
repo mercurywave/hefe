@@ -32,7 +32,7 @@ export class Interpreter{
             if(currGen != this.__gen) return null;
             state.statementLine++;
         }
-        state.wrapUp();
+        await state.wrapUp();
         return {output: state.exportAsStream(), variables: state.exportVariables(), step:  state.statementLine, isComplete: true};
     }
 

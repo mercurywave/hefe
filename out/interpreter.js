@@ -26,7 +26,7 @@ export class Interpreter {
                 return null;
             state.statementLine++;
         }
-        state.wrapUp();
+        await state.wrapUp();
         return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
     }
     static async RunOneLine(state) {
