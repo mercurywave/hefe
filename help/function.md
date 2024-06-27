@@ -90,6 +90,19 @@ Given a map as the input stream, returns an array of keys of the map.
 
 Given an array, returns the keys of the array ([0,1,2,...]).
 
+### range(min, max, by?)
+Creates a new array of numbers from the minimum to the maximum (inclusive).
+
+range(1,3) // [1,2,3]
+
+The 'by' parameter allows to skip values by having each next node iterate by the value of 'by'.
+
+range(1,5,2) // [1,3,5]
+
+A negative 'by' creates an array starting from the maximum down to the minimum.
+
+range(0,4,-2) // [4,2,0]
+
 ### sortBy
 This subroutine takes an array. For each element, you give the element a score via the inner scope, and the final output will be sorted by the score you gave it. Higher scores will sort to a higher index.
 

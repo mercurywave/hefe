@@ -148,3 +148,15 @@ regFunc("keys", 0, 0, [], async (c, stream, pars) => {
     }
     else throw 'stream does not contain keys';
 });
+
+regFunc("range", 2, 3, ["min", "max", "by"], async (c, stream, pars) =>{
+    let min = (await pars[0].Eval(c, stream)).asNum();
+    let max = (await pars[1].Eval(c, stream)).asNum();
+    let by = 1;
+    if(pars.length > 2) by = (await pars[2].Eval(c, stream)).asNum();
+    let arr:Stream[] = [];
+    if(by > 0) for(let i = min; i <= max; i += by) arr.push(Stream.mkNum(i));
+    else if(by < 0) for(let i = max; i >= min; i += by) arr.push(Stream.mkNum(i));
+    else throw new Error("range by value cannot by 0");
+    return Stream.mkArr(arr);
+});
