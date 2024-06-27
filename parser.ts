@@ -309,10 +309,10 @@ function scopeStatement(func: string): SingleMatch<string>[][]{
 
 function expressionLike(stop?: string, optional?: boolean, key?: string):SingleMatch<string> {
     return Match.testSequence(tokes => {
-        const trail = tokes[token.length-1];
-        if(stop && trail === stop) return false;
+        const trail = tokes[tokes.length-1];
         const lPars = arrCount(tokes, "(", "[");
         const rPars = arrCount(tokes, ")", "]");
+        if(stop && trail === stop && lPars == rPars) return false;
         if(lPars < rPars) return false;
         if(lPars > rPars) return null;
         return true;
