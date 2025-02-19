@@ -171,6 +171,15 @@ export class Stream {
         return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
     }
 
+    public getChild(idx: Stream): Stream{
+        if(this.isArray) return this.asArray()[idx.asNum()];
+        if(this.isMap){
+            const key = idx.toKey();
+            return this.asMap().get(key) ?? new Stream();
+        }
+        throw `Cannot retrieve child '${idx.toDisplayText()}' of ${this.type}`;
+    }
+
     public static Compare(a: Stream, b: Stream): number{
         if(a === b) return 0;
         if(a == null) return -1;

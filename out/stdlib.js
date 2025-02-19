@@ -39,13 +39,7 @@ regFunc("piece", 2, 2, ["delim", "pieceNum"], async (c, stream, pars) => {
 });
 regFunc("at", 1, 1, ["index"], async (c, stream, pars) => {
     const idx = (await pars[0].Eval(c, c.stream));
-    if (stream.isMap) {
-        const key = idx.toKey();
-        return stream.asMap().get(key) ?? new Stream();
-    }
-    if (!stream.isArray)
-        throw "cannot access stream array element - expected array";
-    return stream.asArray()[idx.asNum()];
+    return stream.getChild(idx);
 });
 regFunc("length", 0, 0, [], async (c, stream, pars) => {
     if (!stream.isArray && !stream.isText)

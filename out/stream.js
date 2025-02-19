@@ -194,6 +194,15 @@ export class Stream {
         let keys = Array.from(map.keys());
         return keys.map(k => Stream.mkArr([Stream.fromRaw(k), map.get(k)]));
     }
+    getChild(idx) {
+        if (this.isArray)
+            return this.asArray()[idx.asNum()];
+        if (this.isMap) {
+            const key = idx.toKey();
+            return this.asMap().get(key) ?? new Stream();
+        }
+        throw `Cannot retrieve child '${idx.toDisplayText()}' of ${this.type}`;
+    }
     static Compare(a, b) {
         if (a === b)
             return 0;
