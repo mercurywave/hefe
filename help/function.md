@@ -90,6 +90,9 @@ Given a map as the input stream, returns an array of keys of the map.
 
 Given an array, returns the keys of the array ([0,1,2,...]).
 
+### values()
+Given a map as the input stream, returns an array of values of the map, without keys.
+
 ### range(min, max, by?)
 Creates a new array of numbers from the minimum to the maximum (inclusive).
 

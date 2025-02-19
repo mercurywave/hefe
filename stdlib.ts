@@ -149,6 +149,17 @@ regFunc("keys", 0, 0, [], async (c, stream, pars) => {
     else throw 'stream does not contain keys';
 });
 
+regFunc("values", 0, 0, [], async (c, stream, pars) => {
+    if(stream.isMap){
+        let arr : Stream[] = [];
+        for(let value of stream.asMap().values()){
+            arr.push(value);
+        }
+        return Stream.mkArr(arr);
+    }
+    else throw 'expected map';
+});
+
 regFunc("range", 2, 3, ["min", "max", "by"], async (c, stream, pars) =>{
     let min = (await pars[0].Eval(c, stream)).asNum();
     let max = (await pars[1].Eval(c, stream)).asNum();
