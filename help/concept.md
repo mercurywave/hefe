@@ -25,6 +25,10 @@ The right hand operation is not committed to the stream, so you can save off out
 
 myVar << [1,2,3] // saves the array to the variable, but the stream from the previous line is left alone
 
+You can instead use >> to save the stream to a variable at the other end of a statement, as a style preference. For example:
+
+[1,2,3] >> myVar
+
 ### Chaining Functions
 Sometimes it is useful to take a value and execute additional work on it before moving on without dividing the work on multiple lines.
 

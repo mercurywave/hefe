@@ -174,9 +174,11 @@ const _scopeStatements = new Syntax<string, StatementGenerator>()
     .addAnyOf(scopeStatement("do"), (con, res) => new SDo(con, res))
 ;
 const _statements = new Syntax<string, StatementGenerator>()
+    .add([scopeStatementPrefix(">>"), token(">>"), identifier()], (con, res) => new SStoreLocalScoped(con, res))
     .addMulti(_scopeStatements)
     .add([token("exit")], (con, res) => new SExit(con))
-    .add([identifier(), token("<<"), scopeStatementLike()], (con, res) => new SStoreLocalScoped(con, res))
+    .add([expressionLike(">>"), token(">>"), identifier()], (con, res) => new SStoreLocal(con, res))
+    .add([identifier(), token("<<"), scopeStatementRemainder()], (con, res) => new SStoreLocalScoped(con, res))
     .add([identifier(), token("<<"), Match.anything()], (con, res) => new SStoreLocal(con, res))
     .add([token("function"), identifier("fn"), parameterDefList()], (con, res) => new SFunctionDef(con, res))
     .add([token("function"), identifier("fn")], (con, res) => new SFunctionDef(con, res))
@@ -275,11 +277,20 @@ function literalString():SingleMatch<string> {
     return Match.testToken(t => t[0] === "\"" || t[0] === "'" || t[0] === "`"); // shouldn't have lexed anything else with a leading "
 }
 
-function scopeStatementLike(): SingleMatch<string>{
+function scopeStatementRemainder(): SingleMatch<string>{
+    // scope statement, followed by additional post commands
     return Match.testRemainder(t => {
         let test = _scopeStatements.firstPartialMatch(t, 0);
         return test?.result.length == t.length;
     }, false, "statement");
+}
+
+function scopeStatementPrefix(stop: string): SingleMatch<string> {
+    return Match.testPrefix(t => t === stop,
+        tokes => {
+            let res = _scopeStatements.firstPartialMatch(tokes, 0);
+            return res?.result.length == tokes.length;
+        }, false, "statement");
 }
 
 function scopeStatement(func: string): SingleMatch<string>[][]{
@@ -510,7 +521,8 @@ class SStoreLocal extends IStatement{
         super(context);
         this.__ident = parse.getSingleKey("ident");
         context.registerIdent(this.__ident);
-        this.__exp = Parser.tryParseExpression(context, parse.tryGetByKey("any"));
+        var exp = parse.tryGetByKey("any") ?? parse.tryGetByKey("exp");
+        this.__exp = Parser.tryParseExpression(context, exp);
     }
     public async process(context: ExecutionContext): Promise<void> {
         const result = await this.__exp.Eval(context, context.stream);

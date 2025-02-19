@@ -81,6 +81,22 @@ export module Match{
         };
     }
 
+    export function testPrefix<T>(stopper: (T) => boolean, validator: (tokes: T[]) => boolean | null, optional?: boolean, key?: string):SingleMatch<T>{
+        return {
+            Optional: optional,
+            Handler: (t,b) =>{
+                let slice = t.slice(b);
+                let index = 0;
+                for (; index + b < t.length; index++) {
+                    if(stopper(slice[index]) === true) { break; }
+                }
+                let prefix = slice.slice(0, index);
+                let res = validator(prefix);
+                return result(res, b, res ? prefix.length : 0, key ?? "tpref");
+            },
+        };
+    }
+
     export function testRemainder<T>(matcher: (tokes: T[]) => boolean | null, optional?: boolean, key?: string):SingleMatch<T>{
         return {
             Optional: optional,

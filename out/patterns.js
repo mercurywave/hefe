@@ -89,6 +89,24 @@ export var Match;
         };
     }
     Match.testSequence = testSequence;
+    function testPrefix(stopper, validator, optional, key) {
+        return {
+            Optional: optional,
+            Handler: (t, b) => {
+                let slice = t.slice(b);
+                let index = 0;
+                for (; index + b < t.length; index++) {
+                    if (stopper(slice[index]) === true) {
+                        break;
+                    }
+                }
+                let prefix = slice.slice(0, index);
+                let res = validator(prefix);
+                return result(res, b, res ? prefix.length : 0, key ?? "tpref");
+            },
+        };
+    }
+    Match.testPrefix = testPrefix;
     function testRemainder(matcher, optional, key) {
         return {
             Optional: optional,
