@@ -354,9 +354,7 @@ export class Workspace {
                 variables: inVars,
             }
             let res = await Interpreter.Process(input, parse, debugLine);
-            if(res?.error)
-                this.ShowError(res.error);
-            else if(res != null)
+            if(res != null)
             {
                 let outVars = Object.keys(res.variables);
                 outVars = outVars.filter(v => v != "fileName" && inVars[v] == null); // not useful
@@ -386,8 +384,13 @@ export class Workspace {
                     this._txtOutput.value = res.variables[this._selectedOutput].toDisplayText();
                 }
 
-                this._lblError.textContent = "";
-                this.ErrorLine = 99999999;
+                if(res?.error)
+                    this.ShowError(res.error);
+                else {
+                    this._lblError.textContent = "";
+                    this.ErrorLine = 99999999;
+                }
+                
                 this._txtEditor.refresh();
             }
         } catch(err){this.ShowError(err);}

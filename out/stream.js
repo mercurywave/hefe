@@ -146,7 +146,12 @@ export class Stream {
     asNum() {
         if (this.num !== null)
             return this.num;
-        throw new Error('cannot cast to number');
+        if (this.text !== null) {
+            const flo = parseFloat(this.text);
+            if (isNaN(flo))
+                return flo;
+        }
+        throw new Error(`cannot cast '${this.toDisplayText()}' to number`);
     }
     asString() {
         if (this.text !== null)
@@ -155,24 +160,28 @@ export class Stream {
             return "" + this.num;
         if (this.bool !== null)
             return "" + this.bool;
-        throw new Error('cannot cast to string');
+        throw new Error(`cannot cast '${this.toDisplayText()}' to string`);
     }
     asBool() {
         if (this.bool !== null)
             return this.bool;
         if (this.num !== null)
             return this.num != 0;
-        throw new Error('cannot cast to bool');
+        if (this.text?.toLowerCase() == 'true')
+            return true;
+        if (this.text?.toLowerCase() == 'false')
+            return false;
+        throw new Error(`cannot cast '${this.toDisplayText()}' to bool`);
     }
     asArray() {
         if (this.array !== null)
             return this.array; // caution! original reference!
-        throw new Error('cannot cast to array');
+        throw new Error(`cannot cast '${this.toDisplayText()}' to array`);
     }
     asMap() {
         if (this.isMap)
             return this.map;
-        throw new Error('cannot cast to map');
+        throw new Error(`cannot cast '${this.toDisplayText()}' to map`);
     }
     get isNum() { return this.num !== null; }
     get isText() { return this.text !== null; }
