@@ -18,6 +18,7 @@ export class CommandPalette extends HTMLElement {
             if (e.key === "Escape") {
                 this.ctlInput.value = "";
                 this.hide();
+                this.dispatchEvent(new CustomEvent('onHide', {}));
             }
             if (e.key === "ArrowUp") {
                 this.moveSelection(-1);

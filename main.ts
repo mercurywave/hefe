@@ -54,6 +54,7 @@ export class Workspace {
 
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
+        this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(),0); } );
 
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);

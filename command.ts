@@ -90,7 +90,11 @@ export class CommandPalette extends HTMLElement {
         });
 
         this.ctlInput.addEventListener("keydown", e => {
-            if(e.key === "Escape") { this.ctlInput.value = ""; this.hide(); }
+            if(e.key === "Escape") { 
+                this.ctlInput.value = "";
+                this.hide();
+                this.dispatchEvent(new CustomEvent('onHide', { }));
+            }
             if(e.key === "ArrowUp") { this.moveSelection(-1); e.preventDefault(); }
             if(e.key === "ArrowDown") { this.moveSelection(1); e.preventDefault(); }
             if(e.key === "Enter" ) { this.tryRunSelected(); }
