@@ -25,8 +25,8 @@ export class Stream {
     toDisplayText(nested) {
         nested ??= 0;
         const next = nested + 1;
-        const indent = "".padStart(nested, " ");
-        const subIndent = indent + " ";
+        const indent = "".padStart(nested * 2, " ");
+        const subIndent = indent + "  ";
         if (this.isText) {
             if (nested > 0)
                 return "\"" + this.text.replaceAll("\n", "\n" + indent) + "\"";
@@ -42,7 +42,7 @@ export class Stream {
             let arr = [];
             for (let pair of this.map.entries()) {
                 let key = (typeof pair[0] === 'string') ? '"' + pair[0] + '"' : pair[0];
-                arr.push(indent + key + " : " + pair[1].toDisplayText(next));
+                arr.push(key + " : " + pair[1].toDisplayText(next));
             }
             return '{\n' + subIndent + arr.join(",\n" + subIndent) + "\n" + indent + "}";
         }
@@ -142,6 +142,28 @@ export class Stream {
                     return this.mkMap(val);
                 throw new Error(`could not create stream from ${val}`);
         }
+    }
+    static fromObj(obj) {
+        // from a JSON-like object
+        switch (typeof obj) {
+            case "string": return this.fromRaw(obj);
+            case "number": return this.fromRaw(obj);
+            case "boolean": return this.fromRaw(obj);
+        }
+        if (obj == null)
+            throw new Error('did not expect null stream');
+        if (Array.isArray(obj)) {
+            return this.mkArr(obj.map(c => this.fromObj(c)));
+        }
+        var stream = this.mkMap(new Map());
+        for (let key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                var iKey = this.mkText(key).toKey();
+                let child = this.fromObj(obj[key]);
+                stream.map.set(iKey, child);
+            }
+        }
+        return stream;
     }
     asNum() {
         if (this.num !== null)

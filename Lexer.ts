@@ -55,6 +55,10 @@ const _symbols = new Syntax<string, eTokenType>()
     .add([word()], eTokenType.identifier)
     .add([tokens("\"\"")], eTokenType.literalString) // easier to special case an empty string
     .add(literalString(), eTokenType.literalString)
+    .add([tokens("''")], eTokenType.literalString)
+    .add(literalStringApostrophe(), eTokenType.literalString)
+    .add([tokens("``")], eTokenType.literalString)
+    .add(literalStringBacktick(), eTokenType.literalString)
 ;
 
 function tokens(...matches: string[]):SingleMatch<string> {
@@ -91,6 +95,25 @@ function literalString(): SingleMatch<string>[]{
             return !(tokes[idx] === "\"" && symCountBackwards(tokes, idx -1, "\\") % 2 == 0);
         }),
         Match.token("\"")
+    ];
+}
+
+function literalStringApostrophe(): SingleMatch<string>[]{
+    return [
+        Match.token("'"),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "'" && symCountBackwards(tokes, idx -1, "\\") % 2 == 0);
+        }),
+        Match.token("'")
+    ];
+}
+function literalStringBacktick(): SingleMatch<string>[]{
+    return [
+        Match.token("`"),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "`");
+        }),
+        Match.token("`")
     ];
 }
 

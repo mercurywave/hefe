@@ -106,6 +106,9 @@ A negative 'by' creates an array starting from the maximum down to the minimum.
 
 range(0,4,-2) // [4,2,0]
 
+### parseJson
+Takes a string containing JSON and parses it into a map or array, depending on the contents.
+
 ### sortBy
 This subroutine takes an array. For each element, you give the element a score via the inner scope, and the final output will be sorted by the score you gave it. Higher scores will sort to a higher index.
 

@@ -166,3 +166,12 @@ regFunc("range", 2, 3, ["min", "max", "by"], async (c, stream, pars) =>{
     else throw new Error("range by value cannot by 0");
     return Stream.mkArr(arr);
 });
+
+regFunc("parseJson", 0, 0, [], async (c, stream, pars) =>{
+    if(!stream.isText) throw new Error('parseJson expected a string');
+    const text = stream.asString();
+    try{
+        const obj = JSON.parse(text);
+        return Stream.fromObj(obj);
+    } catch(e){ throw new Error(`parseJson failed: ${e}`)}
+});

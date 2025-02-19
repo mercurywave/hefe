@@ -47,7 +47,11 @@ const _symbols = new Syntax()
     .add([number()], eTokenType.literalNumber)
     .add([word()], eTokenType.identifier)
     .add([tokens("\"\"")], eTokenType.literalString) // easier to special case an empty string
-    .add(literalString(), eTokenType.literalString);
+    .add(literalString(), eTokenType.literalString)
+    .add([tokens("''")], eTokenType.literalString)
+    .add(literalStringApostrophe(), eTokenType.literalString)
+    .add([tokens("``")], eTokenType.literalString)
+    .add(literalStringBacktick(), eTokenType.literalString);
 function tokens(...matches) {
     return Match.sequences(matches.map(s => s.split("")));
 }
@@ -80,6 +84,24 @@ function literalString() {
             return !(tokes[idx] === "\"" && symCountBackwards(tokes, idx - 1, "\\") % 2 == 0);
         }),
         Match.token("\"")
+    ];
+}
+function literalStringApostrophe() {
+    return [
+        Match.token("'"),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "'" && symCountBackwards(tokes, idx - 1, "\\") % 2 == 0);
+        }),
+        Match.token("'")
+    ];
+}
+function literalStringBacktick() {
+    return [
+        Match.token("`"),
+        Match.matchWhileAt((tokes, idx) => {
+            return !(tokes[idx] === "`");
+        }),
+        Match.token("`")
     ];
 }
 function symCountBackwards(str, idx, symbol) {

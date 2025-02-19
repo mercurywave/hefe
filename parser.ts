@@ -272,7 +272,7 @@ function literalNumber():SingleMatch<string> {
     return Match.testToken(t => !isNaN(+t) && isFinite(+t));
 }
 function literalString():SingleMatch<string> {
-    return Match.testToken(t => t[0] === "\""); // shouldn't have lexed anything else with a leading "
+    return Match.testToken(t => t[0] === "\"" || t[0] === "'" || t[0] === "`"); // shouldn't have lexed anything else with a leading "
 }
 
 function scopeStatementLike(): SingleMatch<string>{
@@ -616,9 +616,15 @@ class EStringLiteral extends IExpression{
     public constructor(parse: PatternResult<string>){
         super();
         const str = parse.PullOnlyResult();
-        // this seems like something where there should be a better way...
-        this.__str = JSON.parse(str);// str.substring(1, str.length - 1).replace();
-        
+        var lead = str[0];
+        const match = str.match(/^(['"`])(.*)\1$/);
+        if (match) {
+            this.__str = match[2];
+            if(lead !== '`'){
+                this.__str = this.__str.replaceAll("\\n","\n").replaceAll("\\t","\t")
+                this.__str = this.__str.replaceAll("\\" + lead, lead).replaceAll("\\\\", "\\");
+            }
+        } else throw new Error('Invalid string literal');
     }
     public async Eval(context: ExecutionContext, stream: Stream): Promise<Stream> {
         return new Stream(this.__str);
