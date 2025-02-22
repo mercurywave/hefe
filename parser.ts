@@ -624,17 +624,17 @@ class ENumericLiteral extends IExpression{
 }
 
 class EStringLiteral extends IExpression{
-    __str : string;
+    __str: string;
     public constructor(parse: PatternResult<string>){
         super();
         const str = parse.PullOnlyResult();
-        var lead = str[0];
         const match = str.match(/^(['"`])(.*)\1$/);
         if (match) {
-            this.__str = match[2];
-            if(lead !== '`'){
-                this.__str = this.__str.replaceAll("\\n","\n").replaceAll("\\t","\t")
-                this.__str = this.__str.replaceAll("\\" + lead, lead).replaceAll("\\\\", "\\");
+            let jsonString = str;
+            let lead = str[0];
+            if (lead === "'" || lead === "`") {
+                jsonString = str.slice(1, -1).replace(`\\${lead}`, lead);
+                jsonString = '"' + jsonString.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
             }
         } else throw new Error('Invalid string literal');
     }
