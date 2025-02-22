@@ -613,6 +613,7 @@ class EStringLiteral extends IExpression {
                 jsonString = str.slice(1, -1).replace(`\\${lead}`, lead);
                 jsonString = '"' + jsonString.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
             }
+            this.__str = JSON.parse(jsonString);
         }
         else
             throw new Error('Invalid string literal');
