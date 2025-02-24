@@ -20,7 +20,7 @@ export class Workspace {
         this._ctlCommand = document.querySelector("#cmdMain");
         this._ctlSidebar = document.querySelector("#sidebar");
         this._btCopy = document.querySelector("#btCopyToClip");
-        this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
+        this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(), 0); });
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(), 0); });
@@ -32,7 +32,6 @@ export class Workspace {
         this._mainInputTab = this.generateNewInput(true);
         btNewIn.addEventListener("tabclick", () => this.generateNewInput(false));
         this._txtOutput = document.querySelector("#txtOutput");
-        this.setupTextArea(this._txtOutput, false);
         this._tbOutput = document.querySelector("#tbOutput");
         let tabStream = this._tbOutput.addTab("Output", STREAM);
         this._outputTabs[STREAM] = tabStream;
@@ -340,10 +339,10 @@ export class Workspace {
                     this._tbOutput.selectTab(this._outputTabs[STREAM]);
                 }
                 if (this._selectedOutput == STREAM) {
-                    this._txtOutput.value = res.output.toDisplayText();
+                    this._txtOutput.stream = res.output;
                 }
                 else {
-                    this._txtOutput.value = res.variables[this._selectedOutput].toDisplayText();
+                    this._txtOutput.stream = res.variables[this._selectedOutput];
                 }
                 if (res?.error)
                     this.ShowError(res.error);
@@ -363,12 +362,6 @@ export class Workspace {
             return;
         this._selectedOutput = key;
         this.process();
-    }
-    copyToClipboard(textarea) {
-        textarea.select();
-        textarea.setSelectionRange(0, 9999999999);
-        navigator.clipboard.writeText(textarea.value);
-        console.log("copied to clipboard");
     }
     ShowError(err) {
         if (err instanceof LineError) {

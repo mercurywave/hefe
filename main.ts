@@ -3,9 +3,11 @@ import { CodeInput, Template } from "./code-input/code-input.js";
 import { CommandPalette, eCommandType } from "./command.js";
 import { Interpreter, LineError } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
+import { StreamDisplay } from "./output.js";
 import { Parser } from "./parser.js";
 import { Sidebar } from "./sidebar.js";
 import "./stdlib.js";
+import { Stream } from "./stream.js";
 import { TabStrip, Tab } from "./tabstrip.js";
 
 const STREAM = "stream";
@@ -21,7 +23,7 @@ export class Workspace {
     private _btCopy : HTMLInputElement;
     private _txtInput : HTMLTextAreaElement;
     private _tbInput : TabStrip;
-    private _txtOutput : HTMLTextAreaElement;
+    private _txtOutput : StreamDisplay;
     private _tbOutput : TabStrip;
     private _txtEditor : CodeInput;
     private _tbEditor : TabStrip;
@@ -50,7 +52,7 @@ export class Workspace {
         this._ctlSidebar = document.querySelector("#sidebar");
 
         this._btCopy = document.querySelector("#btCopyToClip");
-        this._btCopy.addEventListener("click", () => this.copyToClipboard(this._txtOutput));
+        this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
 
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
@@ -65,7 +67,6 @@ export class Workspace {
         btNewIn.addEventListener("tabclick", () => this.generateNewInput(false));
 
         this._txtOutput = document.querySelector("#txtOutput");
-        this.setupTextArea(this._txtOutput, false);
         this._tbOutput = document.querySelector("#tbOutput");
         let tabStream = this._tbOutput.addTab("Output", STREAM);
         this._outputTabs[STREAM] = tabStream;
@@ -379,10 +380,10 @@ export class Workspace {
                 }
 
                 if(this._selectedOutput == STREAM){
-                    this._txtOutput.value = res.output.toDisplayText();
+                    this._txtOutput.stream = res.output;
                 }
                 else {
-                    this._txtOutput.value = res.variables[this._selectedOutput].toDisplayText();
+                    this._txtOutput.stream = res.variables[this._selectedOutput];
                 }
 
                 if(res?.error)
@@ -401,14 +402,6 @@ export class Workspace {
         if(this._selectedOutput == key) return;
         this._selectedOutput = key;
         this.process();
-    }
-
-    private copyToClipboard(textarea: HTMLTextAreaElement){
-        textarea.select();
-        textarea.setSelectionRange(0, 9999999999);
-
-        navigator.clipboard.writeText(textarea.value);
-        console.log("copied to clipboard");
     }
 
     private ShowError(err:Error){

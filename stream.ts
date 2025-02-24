@@ -185,6 +185,10 @@ export class Stream {
     public get isArray(): boolean { return this.array !== null; }
     public get isMap(): boolean { return this.map !== null; }
 
+    public get isTable(): boolean { 
+        return this.isArray && this.array.every(c => c.isArray);
+    }
+
     // returns array of [key, value] arrays
     public mapToPairsArr(): Stream[]{
         let map = this.asMap();

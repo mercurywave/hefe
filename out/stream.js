@@ -210,6 +210,9 @@ export class Stream {
     get isBool() { return this.bool !== null; }
     get isArray() { return this.array !== null; }
     get isMap() { return this.map !== null; }
+    get isTable() {
+        return this.isArray && this.array.every(c => c.isArray);
+    }
     // returns array of [key, value] arrays
     mapToPairsArr() {
         let map = this.asMap();

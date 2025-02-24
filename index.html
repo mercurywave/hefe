@@ -10,6 +10,7 @@
     <script src="out/tabstrip.js" type="module"></script>
     <script src="out/command.js" type="module"></script>
     <script src="out/sidebar.js" type="module"></script>
+    <script src="out/output.js" type="module"></script>
     <script src="out/main.js" type="module"></script>
     <script src="out/help/function.js" type="module"></script>
     <script src="out/help/concept.js" type="module"></script>
@@ -26,7 +27,11 @@
             <tab-strip id="tbInput"></tab-strip>
         </div>
         <div id="outputPane" class="tabbedPane">
-            <textarea id="txtOutput" spellcheck="false" class="txtOut txtPanel txt"></textarea>
+            <div id="outputWrapOuter" class="txt">
+                <div id="outputWrap">
+                    <stream-display id="txtOutput"></stream-display>
+                </div>
+            </div>
             <tab-strip id="tbOutput"></tab-strip>
         </div>
         <div id="lblError"></div>
