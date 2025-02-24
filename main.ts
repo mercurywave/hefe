@@ -58,6 +58,9 @@ export class Workspace {
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(),0); } );
 
+        let chkRawText = document.querySelector("#chkRawText") as HTMLInputElement;
+        chkRawText.addEventListener("change", () => this._txtOutput.alwaysTextArea = !chkRawText.checked);
+
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);
         this._tbInput = document.querySelector("#tbInput");

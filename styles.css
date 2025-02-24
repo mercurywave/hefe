@@ -11,6 +11,13 @@ body {
     top: 0;
     right: 0;
     padding: 10px;
+    vertical-align: middle;
+}
+#toolbar label{
+    font-size: small;
+}
+#toolbar .checkbox{
+    margin: 4px 0;
 }
 .tbButton {
     border: .5px solid #aaa;
