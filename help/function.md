@@ -109,6 +109,11 @@ range(0,4,-2) // [4,2,0]
 ### parseJson
 Takes a string containing JSON and parses it into a map or array, depending on the contents.
 
+### toJson(prettify?)
+Converts an object-like stream to a JSON object string. When given a string, this will escape the string for JSON.
+
+The prettify parameter accepts a bool which lets you output the string. The default is false.
+
 ### sortBy
 This subroutine takes an array. For each element, you give the element a score via the inner scope, and the final output will be sorted by the score you gave it. Higher scores will sort to a higher index.
 

@@ -42,7 +42,7 @@ export class Stream {
             let arr = [];
             for (let pair of this.map.entries()) {
                 let key = (typeof pair[0] === 'string') ? '"' + pair[0] + '"' : pair[0];
-                arr.push(key + " : " + pair[1].toDisplayText(next));
+                arr.push(key + ": " + pair[1].toDisplayText(next));
             }
             return '{\n' + subIndent + arr.join(",\n" + subIndent) + "\n" + indent + "}";
         }
@@ -164,6 +164,26 @@ export class Stream {
             }
         }
         return stream;
+    }
+    toObj() {
+        // to a JSON-like object
+        if (this.isText)
+            return this.text;
+        if (this.isNum)
+            return this.num;
+        if (this.isBool)
+            return this.bool;
+        if (this.isArray)
+            return this.array.map(c => c.toObj());
+        if (this.isMap) {
+            let obj = {};
+            for (let pair of this.map.entries()) {
+                let key = (typeof pair[0] === 'string') ? pair[0] : pair[0].toString();
+                obj[key] = pair[1].toObj();
+            }
+            return obj;
+        }
+        throw 'unknown type for toObj';
     }
     asNum() {
         if (this.num !== null)

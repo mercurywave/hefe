@@ -175,3 +175,11 @@ regFunc("parseJson", 0, 0, [], async (c, stream, pars) =>{
         return Stream.fromObj(obj);
     } catch(e){ throw new Error(`parseJson failed: ${e}`)}
 });
+
+regFunc("toJson", 0, 1, ["prettify"], async (c, stream, pars) =>{
+    let pretty = false;
+    if(pars.length > 0) pretty = (await pars[0].Eval(c, stream)).asBool();
+    try{
+        return Stream.mkText(JSON.stringify(stream.toObj(), null, pretty ? 2 : 0));
+    } catch(e){ throw new Error(`parseJson failed: ${e}`)}
+});
