@@ -85,6 +85,11 @@ Attempt to parse the input string stream into a real number that math can be per
 
 "1.0":tryParseNum // 1
 
+### reMatchAll(regex, caseInsensitive)
+Returns an array of all matches to a js regex in the input string.
+
+"abcdABCD" : reMatchAll("a|c", true) // ['a', 'c', 'A', 'C']
+
 ### keys()
 Given a map as the input stream, returns an array of keys of the map.
 

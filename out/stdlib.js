@@ -213,4 +213,17 @@ regFunc("jsEx", 1, 1, ["jsCode"], async (c, stream, pars) => {
         throw new Error(`jsCode error: ${e}`);
     }
 });
+regFunc("reMatchAll", 1, 2, ["regExp"], async (c, stream, pars) => {
+    let code = (await pars[0].Eval(c, stream)).asString();
+    let caseInsensitve = false;
+    if (pars.length > 1)
+        caseInsensitve = (await pars[1].Eval(c, stream)).asBool();
+    try {
+        const regex = new RegExp(code, "g" + (caseInsensitve ? 'i' : ''));
+        return Stream.mkArr((stream.asString().match(regex) || []).map(i => Stream.mkText(i)));
+    }
+    catch (e) {
+        throw new Error(`regex error: ${e}`);
+    }
+});
 //# sourceMappingURL=stdlib.js.map
