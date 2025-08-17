@@ -90,6 +90,11 @@ Returns an array of all matches to a js regex in the input string.
 
 "abcdABCD" : reMatchAll("a|c", true) // ['a', 'c', 'A', 'C']
 
+### reReplaceAll(regex, caseInsensitive)
+Replace or remove all matching substrings to a js regex in the input string.
+
+"abcdABCD" : reReplaceAll("a|c", "_", true) // _b_d_B_D
+
 ### keys()
 Given a map as the input stream, returns an array of keys of the map.
 

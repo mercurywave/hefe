@@ -226,4 +226,20 @@ regFunc("reMatchAll", 1, 2, ["regExp"], async (c, stream, pars) => {
         throw new Error(`regex error: ${e}`);
     }
 });
+regFunc("reReplaceAll", 1, 3, ["regExp"], async (c, stream, pars) => {
+    let code = (await pars[0].Eval(c, stream)).asString();
+    let caseInsensitve = false;
+    let repl = "";
+    if (pars.length > 1)
+        repl = (await pars[1].Eval(c, stream)).asString();
+    if (pars.length > 2)
+        caseInsensitve = (await pars[2].Eval(c, stream)).asBool();
+    try {
+        const regex = new RegExp(code, "g" + (caseInsensitve ? 'i' : ''));
+        return Stream.mkText(stream.asString().replace(regex, repl));
+    }
+    catch (e) {
+        throw new Error(`regex error: ${e}`);
+    }
+});
 //# sourceMappingURL=stdlib.js.map
