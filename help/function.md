@@ -114,6 +114,13 @@ Converts an object-like stream to a JSON object string. When given a string, thi
 
 The prettify parameter accepts a bool which lets you output the string. The default is false.
 
+### jsEx(code)
+This allows you to execute arbitrary javascript code on the input stream. The input code should be a valid expression which evaluates to an output value. The 'stream' variable is availble to the code to execute, and the result is chained forward.
+
+WARNING: As this is a rough prototype, this is a temporary shim, and may be removed in future.
+
+"asdf" : jsEx(`"[" + stream + "]"`) // "[asdf]"
+
 ### sortBy
 This subroutine takes an array. For each element, you give the element a score via the inner scope, and the final output will be sorted by the score you gave it. Higher scores will sort to a higher index.
 

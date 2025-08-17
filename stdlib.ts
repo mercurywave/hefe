@@ -183,3 +183,11 @@ regFunc("toJson", 0, 1, ["prettify"], async (c, stream, pars) =>{
         return Stream.mkText(JSON.stringify(stream.toObj(), null, pretty ? 2 : 0));
     } catch(e){ throw new Error(`parseJson failed: ${e}`)}
 });
+
+regFunc("jsEx", 1, 1, ["jsCode"], async (c, stream, pars) =>{
+    let code = (await pars[0].Eval(c, stream)).asString();
+    try{
+        const func = new Function('stream', `return ${code};`);
+        return Stream.fromRaw(await func(stream.toRaw()));
+    } catch(e){ throw new Error(`jsCode error: ${e}`)}
+});

@@ -203,4 +203,14 @@ regFunc("toJson", 0, 1, ["prettify"], async (c, stream, pars) => {
         throw new Error(`parseJson failed: ${e}`);
     }
 });
+regFunc("jsEx", 1, 1, ["jsCode"], async (c, stream, pars) => {
+    let code = (await pars[0].Eval(c, stream)).asString();
+    try {
+        const func = new Function('stream', `return ${code};`);
+        return Stream.fromRaw(await func(stream.toRaw()));
+    }
+    catch (e) {
+        throw new Error(`jsCode error: ${e}`);
+    }
+});
 //# sourceMappingURL=stdlib.js.map
