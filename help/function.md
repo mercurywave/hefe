@@ -100,6 +100,11 @@ Returns true if the input string contains a matching regex pattern.
 
 "abcd" : reContains("A|Z", true) // true
 
+### reSplit(regex, caseInsensitive)
+Splits the input string into an array using a js regex.
+
+"abcd" : reSplit("B|Z", true) // ['a', 'cd']
+
 ### keys()
 Given a map as the input stream, returns an array of keys of the map.
 
