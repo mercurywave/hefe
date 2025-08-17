@@ -226,6 +226,19 @@ regFunc("reMatchAll", 1, 2, ["regExp"], async (c, stream, pars) => {
         throw new Error(`regex error: ${e}`);
     }
 });
+regFunc("reContains", 1, 2, ["regExp"], async (c, stream, pars) => {
+    let code = (await pars[0].Eval(c, stream)).asString();
+    let caseInsensitve = false;
+    if (pars.length > 1)
+        caseInsensitve = (await pars[1].Eval(c, stream)).asBool();
+    try {
+        const regex = new RegExp(code, (caseInsensitve ? 'i' : ''));
+        return Stream.mkBool(stream.asString().search(regex) >= 0);
+    }
+    catch (e) {
+        throw new Error(`regex error: ${e}`);
+    }
+});
 regFunc("reReplaceAll", 1, 3, ["regExp"], async (c, stream, pars) => {
     let code = (await pars[0].Eval(c, stream)).asString();
     let caseInsensitve = false;

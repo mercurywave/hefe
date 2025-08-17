@@ -95,6 +95,11 @@ Replace or remove all matching substrings to a js regex in the input string.
 
 "abcdABCD" : reReplaceAll("a|c", "_", true) // _b_d_B_D
 
+### reContains(regex, caseInsensitive)
+Returns true if the input string contains a matching regex pattern.
+
+"abcd" : reContains("A|Z", true) // true
+
 ### keys()
 Given a map as the input stream, returns an array of keys of the map.
 
