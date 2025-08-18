@@ -19,6 +19,16 @@ body {
 #toolbar .checkbox{
     margin: 4px 0;
 }
+.editPaneToolbar{
+    margin: 0 5px;
+    vertical-align: middle;
+    display: flex;
+    flex-direction: row;
+}
+#lblFolder{ 
+    margin: auto 5px;
+    font-size: 12px;
+}
 .tbButton {
     border: .5px solid #aaa;
     background-color: #3E3D5F;

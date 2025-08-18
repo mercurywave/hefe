@@ -21,6 +21,8 @@ export class Workspace {
         this._ctlSidebar = document.querySelector("#sidebar");
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
+        this._btFolder = document.querySelector("#btFolder");
+        this._btFolder.addEventListener("click", () => { });
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(), 0); });
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(), 0); });

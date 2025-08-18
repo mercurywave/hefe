@@ -25,6 +25,10 @@
             <input type="button" id="btCopyToClip" value="Copy Output" class="tbButton" title="Copy output pane to clipboard" />
         </div>
         <div id="inputPane"class="tabbedPane">
+            <div class="editPaneToolbar">
+                <input type="button" id="btFolder" value="Load Folder" class="tbButton" title="Load a file to perform batch operations" />
+                <div id="lblFolder"></div>
+            </div>
             <textarea id="txtInput" spellcheck="false" class="txtIn txtPanel txt"></textarea>
             <tab-strip id="tbInput"></tab-strip>
         </div>

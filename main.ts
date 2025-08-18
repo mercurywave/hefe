@@ -27,6 +27,7 @@ export class Workspace {
     private _tbOutput : TabStrip;
     private _txtEditor : CodeInput;
     private _tbEditor : TabStrip;
+    private _btFolder : HTMLButtonElement;
 
     private _fileName: string;
 
@@ -53,6 +54,9 @@ export class Workspace {
 
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
+
+        this._btFolder = document.querySelector("#btFolder");
+        this._btFolder.addEventListener("click", () => {});
 
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
