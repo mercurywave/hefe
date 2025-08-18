@@ -356,13 +356,14 @@ export class Workspace {
             let inVars: Record<string, string> = {};
             for (const tab of Object.values(this._inputTabValues)) {
                 var name = tab.tab.name;
-                if(tab.tab !== this._mainInputTab && name != "") 
+                if(name != "") 
                     inVars[name] = this.getVariableValue(name);
             }
             const input = {
                 text: this.getVariableValue(INPUT),
                 fileName: this._fileName ?? "[temp file]",
                 variables: inVars,
+                folder: this._selectFolder,
             }
             let res = await Interpreter.Process(input, parse, debugLine);
             if(res != null)
@@ -425,9 +426,8 @@ export class Workspace {
     async selectFolder() {
         try {
             // Show folder picker (requires browser support)
-            const dirHandle = await (window as any).showDirectoryPicker();
-            this._selectFolder = dirHandle.name;
-            document.querySelector("#lblFolder").textContent = "\\" + dirHandle.name;
+            this._selectFolder = await (window as any).showDirectoryPicker(); // TODO: ts rejects type checking? Also, do something in unsupported browsers
+            document.querySelector("#lblFolder").textContent = "\\" + this._selectFolder.name;
             this.process();
         } catch (err) {
             this.ShowError(err);

@@ -7,12 +7,13 @@ export interface InputContext{
     text: string;
     fileName: string;
     variables: Record<string, string>;
+    folder: FileSystemDirectoryHandle | null;
 }
 
 export class Interpreter{
     static __gen = 0;
     public static async Process(input: InputContext, parse: ParseContext, debugLine: number): Promise<TransformResult>{
-        let state = new InterpreterState(Stream.mkText(input.text), parse.Statements, parse.functionDefs, debugLine);
+        let state = new InterpreterState(Stream.mkText(input.text), parse.Statements, parse.functionDefs, debugLine, input);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         for (const key in input.variables) {
             state.setGlobalVal(key, Stream.mkText(input.variables[key]));
@@ -81,7 +82,7 @@ export class Interpreter{
     
     public static async RunUserFunction(context: ExecutionContext, func: SFunctionDef, params: Stream[], stream: Stream):Promise<Stream>{
         let interpreter = context.__state;
-        let state = new InterpreterState(stream, func.code, interpreter.functionDefs, interpreter.__debugLine);
+        let state = new InterpreterState(stream, func.code, interpreter.functionDefs, interpreter.__debugLine, interpreter.__inputContext);
         for (let index = 0; index < params.length; index++) {
             state.setGlobalVal(func.params[index], params[index]);
         }
@@ -126,6 +127,8 @@ export class ExecutionContext{
 
     public get stream(): Stream { return this.leafNode.stream;}
     public get leafNode(): StackBranch { return this.__currBranch[this.__currBranch.length - 1]; }
+    public get selectedFolder(): FileSystemDirectoryHandle | null { return this.__state.selectedFolder; }
+    public get originalInput(): InputContext { return this.__state.__inputContext; }
 
     public updateStream(stream: Stream){
         var stack = this.leafNode;
@@ -150,19 +153,22 @@ export class InterpreterState{
     __code: IStatement[] = [];
     __scopes: IStatement[] = [null];
     __debugLine: number;
+    __inputContext: InputContext;
     public functionDefs: Record<string, SFunctionDef>;
     public statementLine: number = 0;
     public lastStatement: IStatement = null; // last actually evaluated statement - ignores nulls
     public expectingInnerScope: boolean = false;
     public get currStatement(): IStatement | null { return this.__code[this.statementLine]; }
     public get nextStatement(): IStatement | null { return this.__code[this.statementLine + 1]; }
-    public get currFileLine(): number {return this.currStatement.fileLine; }
+    public get currFileLine(): number { return this.currStatement.fileLine; }
+    public get selectedFolder(): FileSystemDirectoryHandle | null { return this.__inputContext.folder; }
 
-    public constructor(stream: Stream, code: IStatement[], funcs: Record<string, SFunctionDef>, debugLine: number){
+    public constructor(stream: Stream, code: IStatement[], funcs: Record<string, SFunctionDef>, debugLine: number, input: InputContext){
         this.__root = new StackBranch(stream, 0);
         this.__code = code;
         this.functionDefs = funcs;
         this.__debugLine = debugLine;
+        this.__inputContext = input;
     }
 
     public get depth(): number {return this.__scopes.length;}
