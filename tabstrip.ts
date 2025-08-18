@@ -62,6 +62,7 @@ export class TabStrip extends HTMLElement {
         this.dispatchEvent(new CustomEvent("tabSelected", {
             detail: {tab: tab, key: tab.key}
         }));
+        tab.scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});
     }
     public get selectedTab():Tab { return this._selectedTab; }
     public addFixedTab(label: string, key?: string): Tab{
