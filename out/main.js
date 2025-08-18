@@ -16,6 +16,7 @@ export class Workspace {
         this._processOnVisible = false;
         this._inputTabValues = {};
         this._outputTabs = {};
+        this._tabStreams = {};
         this._lblFile = document.querySelector("#lblFile");
         this._ctlCommand = document.querySelector("#cmdMain");
         this._ctlSidebar = document.querySelector("#sidebar");
@@ -121,7 +122,7 @@ export class Workspace {
                         curY = 99999999;
                     this.DebugLine = curY;
                     area.update(area.value);
-                    this.process();
+                    this.process(true);
                     e.preventDefault();
                 }
             }
@@ -226,7 +227,7 @@ export class Workspace {
         if (!script)
             return;
         this._txtEditor.value = script.Code ?? "split";
-        this.process();
+        this.process(true);
     }
     switchInputs(key) {
         if (this._selectedInput == key)
@@ -339,7 +340,8 @@ export class Workspace {
                 outVars = outVars.filter(v => v != "fileName" && inVars[v] == null); // not useful
                 outVars.push(STREAM);
                 let uniqCounter = {};
-                let vTabs = {};
+                this._tabStreams = {}; // I don't love keeping the streams in memory, but re-running is also annoying
+                let vTabs = this._tabStreams;
                 let getName = (name) => {
                     // make sure names are unique for side outputs
                     if (name in uniqCounter) {
@@ -375,7 +377,7 @@ export class Workspace {
                     this._selectedOutput = STREAM;
                     this._tbOutput.selectTab(this._outputTabs[STREAM]);
                 }
-                this._txtOutput.stream = vTabs[this._selectedOutput];
+                this._txtOutput.stream = vTabs[this._selectedOutput]; // always write in case of change
                 if (res?.error)
                     this.ShowError(res.error);
                 else {
@@ -393,7 +395,7 @@ export class Workspace {
         if (this._selectedOutput == key)
             return;
         this._selectedOutput = key;
-        this.process();
+        this._txtOutput.stream = this._tabStreams[this._selectedOutput]; // FRAGILE!
     }
     ShowError(err) {
         if (err instanceof LineError) {

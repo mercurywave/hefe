@@ -44,6 +44,7 @@ export class Workspace {
 
     private _selectedOutput: string;
     private _outputTabs: Record<string, Tab> = {};
+    private _tabStreams: Record<string, Stream> = {};
 
     private _ctlCommand: CommandPalette;
     private _ctlSidebar: Sidebar;
@@ -165,7 +166,7 @@ export class Workspace {
                     if(this.DebugLine == curY) curY = 99999999;
                     this.DebugLine = curY;
                     area.update(area.value);
-                    this.process();
+                    this.process(true);
                     e.preventDefault();
                 }
             }
@@ -266,7 +267,7 @@ export class Workspace {
         this._selectedScript = script;
         if(!script) return;
         this._txtEditor.value = script.Code ?? "split";
-        this.process();
+        this.process(true);
     }
 
 
@@ -383,7 +384,8 @@ export class Workspace {
                 outVars.push(STREAM);
 
                 let uniqCounter: Record<string, number> = {};
-                let vTabs: Record<string, Stream> = {};
+                this._tabStreams = {}; // I don't love keeping the streams in memory, but re-running is also annoying
+                let vTabs = this._tabStreams;
 
                 let getName = (name: string):string => {
                     // make sure names are unique for side outputs
@@ -425,7 +427,7 @@ export class Workspace {
                     this._tbOutput.selectTab(this._outputTabs[STREAM]);
                 }
 
-                this._txtOutput.stream = vTabs[this._selectedOutput];
+                this._txtOutput.stream = vTabs[this._selectedOutput]; // always write in case of change
                 
                 if(res?.error)
                     this.ShowError(res.error);
@@ -442,7 +444,7 @@ export class Workspace {
     private switchOutputs(key: string){
         if(this._selectedOutput == key) return;
         this._selectedOutput = key;
-        this.process();
+        this._txtOutput.stream = this._tabStreams[this._selectedOutput]; // FRAGILE!
     }
 
     private ShowError(err:Error){
