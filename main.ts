@@ -27,7 +27,9 @@ export class Workspace {
     private _tbOutput : TabStrip;
     private _txtEditor : CodeInput;
     private _tbEditor : TabStrip;
+
     private _btFolder : HTMLButtonElement;
+    private _selectFolder : FileSystemDirectoryHandle;
 
     private _fileName: string;
 
@@ -56,7 +58,7 @@ export class Workspace {
         this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
 
         this._btFolder = document.querySelector("#btFolder");
-        this._btFolder.addEventListener("click", () => {});
+        this._btFolder.addEventListener("click", () => this.selectFolder());
 
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
@@ -418,6 +420,18 @@ export class Workspace {
         }
         console.log("error:", err);
         this._lblError.textContent = err.message;
+    }
+
+    async selectFolder() {
+        try {
+            // Show folder picker (requires browser support)
+            const dirHandle = await (window as any).showDirectoryPicker();
+            this._selectFolder = dirHandle.name;
+            document.querySelector("#lblFolder").textContent = "\\" + dirHandle.name;
+            this.process();
+        } catch (err) {
+            this.ShowError(err);
+        }
     }
 }
 

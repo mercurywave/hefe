@@ -22,7 +22,7 @@ export class Workspace {
         this._btCopy = document.querySelector("#btCopyToClip");
         this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
         this._btFolder = document.querySelector("#btFolder");
-        this._btFolder.addEventListener("click", () => { });
+        this._btFolder.addEventListener("click", () => this.selectFolder());
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(), 0); });
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(), 0); });
@@ -374,6 +374,18 @@ export class Workspace {
         }
         console.log("error:", err);
         this._lblError.textContent = err.message;
+    }
+    async selectFolder() {
+        try {
+            // Show folder picker (requires browser support)
+            const dirHandle = await window.showDirectoryPicker();
+            this._selectFolder = dirHandle.name;
+            document.querySelector("#lblFolder").textContent = "\\" + dirHandle.name;
+            this.process();
+        }
+        catch (err) {
+            this.ShowError(err);
+        }
     }
 }
 class Script {
