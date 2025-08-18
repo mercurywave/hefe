@@ -36,6 +36,8 @@ regHelp([
     { title: "filter", content: "This subroutine has you evaluate each element in the inner scope. For each element, process a boolean value to determine whether the element should be included in the final output.<br /><br />[1,2,3,4,5]<br />filter<br />&nbsp;&nbsp;&nbsp;&nbsp;modulo(2) = 0<br />// [2,4]", type: "functions" },
     { title: "pivot", content: "Given an array, create a map that groups elements into a map. In the inner scope, calculate a key which will be used for clustering.<br /><br />[1,2,3,4,5]<br />pivot<br />&nbsp;&nbsp;&nbsp;&nbsp;modulo(2)<br />//{<br />//  0 : [2,4],<br />//  1 : [1,3,5]<br />//}", type: "functions" },
     { title: "do", content: "This subroutine simply passes through the input and outputs the work of the inner scope. It might be useful for code organization in some cases.", type: "functions" },
-    { title: "exit", content: "Halts script execution immediately, similar to entering debug mode on a line.", type: "functions" }
+    { title: "exit", content: "Halts script execution immediately, similar to entering debug mode on a line.", type: "functions" },
+    { title: "getFiles", content: "Load the name of every file in the current folder as an array. Select the folder you want to load using the Load Folder button.<br /><br />If you have not selected a folder, the names of the input tabs will be provided.", type: "functions" },
+    { title: "loadFile", content: "Load a file from the selected folder as a text string. If no folder is selected, you can load the contents of an input tab by name.<br /><br />\"a.txt\" : loadFile // returns the contents of the file", type: "functions" }
 ]);
 //# sourceMappingURL=function.js.map

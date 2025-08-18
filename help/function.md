@@ -195,3 +195,13 @@ This subroutine simply passes through the input and outputs the work of the inne
 
 ### exit
 Halts script execution immediately, similar to entering debug mode on a line.
+
+### getFiles
+Load the name of every file in the current folder as an array. Select the folder you want to load using the Load Folder button.
+
+If you have not selected a folder, the names of the input tabs will be provided.
+
+### loadFile
+Load a file from the selected folder as a text string. If no folder is selected, you can load the contents of an input tab by name.
+
+"a.txt" : loadFile // returns the contents of the file

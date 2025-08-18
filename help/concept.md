@@ -48,3 +48,14 @@ Scope functions like map are a special case, because they have an inner scope on
 [1,2,3] :: map :: join(",")
     stream + 1
 // outputs "2,3,4"
+
+### Folder Processing
+Once you have a processing script you're happy with, you can use that to apply to process multiple files in a folder.
+
+Specify a folder by pressing the Load Folder button. Nothing happens immediately once you select a folder, as you have to define how you want to process that data.
+
+You can use the getFiles command to get a list of all the files in the folder. Then you can filter that list using your typical tools. You can then specify to load those files as text using the loadFile command for each file name you want to load.
+
+getFiles
+map
+    loadFile

@@ -254,7 +254,6 @@ regFunc("getFiles", 0, 0, [], async (c, stream, pars) =>{
     } catch(e){ throw new Error(`getFilesInFolder: ${e}`)}
 });
 
-
 regFunc("loadFile", 0, 0, [], async (c, stream, pars) =>{
     try{
         return await getFileTextOrInput(c, stream.asString());
