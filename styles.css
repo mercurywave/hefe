@@ -43,6 +43,9 @@ body {
 .tbButton:hover{
     background-color: #646281;
 }
+.tbHighlight{
+    background-color: #c56c48;
+}
 .txt{
     background-color: #3E3D5F;
     color: #FFF;
@@ -125,4 +128,7 @@ body {
     position: fixed;
     top: 60%;
     color: orange;
+}
+.noDisp {
+    display: none;
 }

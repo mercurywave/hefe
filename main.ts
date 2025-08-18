@@ -67,6 +67,12 @@ export class Workspace {
         let chkRawText = document.querySelector("#chkRawText") as HTMLInputElement;
         chkRawText.addEventListener("change", () => this._txtOutput.alwaysTextArea = !chkRawText.checked);
 
+        let chkAuto = document.querySelector("#chkAuto") as HTMLInputElement;
+        chkAuto.addEventListener("change", () => this.updateAutoState());
+
+        let btRun = document.querySelector("#btRun") as HTMLInputElement;
+        btRun.addEventListener("click", () => this.process(true));
+
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);
         this._tbInput = document.querySelector("#tbInput");
@@ -106,6 +112,7 @@ export class Workspace {
                 this.process();
             }
         } );
+        this.updateAutoState();
     }
 
     private setupCommands(){
@@ -330,8 +337,11 @@ export class Workspace {
         setTimeout(() => this.process(), 250);
     }
 
-    public process(){
-        //const a = new Parser();
+    public process(force?: boolean){
+        let btRun = document.querySelector("#btRun") as HTMLInputElement;
+        btRun.classList.toggle("tbHighlight", true);
+        if(!this.isAutoRun && !force) { return; }
+        btRun.classList.toggle("tbHighlight", false);
         try{
             const code = this._txtEditor.value;
             if(this._selectedScript != null && this._selectedScript.Code != code){
@@ -423,7 +433,7 @@ export class Workspace {
         this._lblError.textContent = err.message;
     }
 
-    async selectFolder() {
+    private async selectFolder() {
         try {
             // Show folder picker (requires browser support)
             this._selectFolder = await (window as any).showDirectoryPicker(); // TODO: ts rejects type checking? Also, do something in unsupported browsers
@@ -432,7 +442,19 @@ export class Workspace {
         } catch (err) {
             this.ShowError(err);
         }
+        this.updateAutoState();
     }
+
+    private updateAutoState(){
+        let chkAuto = document.querySelector("#chkAuto") as HTMLInputElement;
+        if(this._selectFolder){
+            chkAuto.checked = false;
+            chkAuto.disabled = true;
+        }
+        let btRun = document.querySelector("#btRun") as HTMLInputElement;
+        btRun.classList.toggle("noDisp", this.isAutoRun);
+    }
+    private get isAutoRun(): boolean { return (document.querySelector("#chkAuto") as HTMLInputElement).checked; }
 }
 
 class Script {

@@ -28,6 +28,10 @@ export class Workspace {
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(), 0); });
         let chkRawText = document.querySelector("#chkRawText");
         chkRawText.addEventListener("change", () => this._txtOutput.alwaysTextArea = !chkRawText.checked);
+        let chkAuto = document.querySelector("#chkAuto");
+        chkAuto.addEventListener("change", () => this.updateAutoState());
+        let btRun = document.querySelector("#btRun");
+        btRun.addEventListener("click", () => this.process(true));
         this._txtInput = document.querySelector("#txtInput");
         this.setupTextArea(this._txtInput, true);
         this._tbInput = document.querySelector("#tbInput");
@@ -61,6 +65,7 @@ export class Workspace {
                 this.process();
             }
         });
+        this.updateAutoState();
     }
     setupCommands() {
         for (const help of _loadedHelpPages) {
@@ -290,8 +295,13 @@ export class Workspace {
     queueProcess() {
         setTimeout(() => this.process(), 250);
     }
-    process() {
-        //const a = new Parser();
+    process(force) {
+        let btRun = document.querySelector("#btRun");
+        btRun.classList.toggle("tbHighlight", true);
+        if (!this.isAutoRun && !force) {
+            return;
+        }
+        btRun.classList.toggle("tbHighlight", false);
         try {
             const code = this._txtEditor.value;
             if (this._selectedScript != null && this._selectedScript.Code != code) {
@@ -386,7 +396,18 @@ export class Workspace {
         catch (err) {
             this.ShowError(err);
         }
+        this.updateAutoState();
     }
+    updateAutoState() {
+        let chkAuto = document.querySelector("#chkAuto");
+        if (this._selectFolder) {
+            chkAuto.checked = false;
+            chkAuto.disabled = true;
+        }
+        let btRun = document.querySelector("#btRun");
+        btRun.classList.toggle("noDisp", this.isAutoRun);
+    }
+    get isAutoRun() { return document.querySelector("#chkAuto").checked; }
 }
 class Script {
     constructor(key) {
