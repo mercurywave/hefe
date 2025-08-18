@@ -20,7 +20,7 @@ body {
     margin: 4px 0;
 }
 .editPaneToolbar{
-    margin: 0 5px;
+    margin: 10px 0;
     vertical-align: middle;
     display: flex;
     flex-direction: row;

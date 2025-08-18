@@ -17,7 +17,10 @@
 </head>
 <body>
     <div id="paneMain">
-        <h1 id="lblFile">Hefe - brew up a transform</h1>
+        <div class="editPaneToolbar">
+            <input type="button" id="btFolder" value="Load Folder" class="tbButton" title="Load a file to perform batch operations" />
+            <div id="lblFolder"></div>
+        </div>
         <div id="toolbar">
             <input type="button" id="btRun" value="Run" class="tbButton noDisp" title="Run script on input" />
             <input type="checkbox" class="checkbox" id="chkAuto" checked title="If checked, output will automatically process on any changes" />
@@ -28,10 +31,6 @@
             <input type="button" id="btCopyToClip" value="Copy Output" class="tbButton" title="Copy output pane to clipboard" />
         </div>
         <div id="inputPane"class="tabbedPane">
-            <div class="editPaneToolbar">
-                <input type="button" id="btFolder" value="Load Folder" class="tbButton" title="Load a file to perform batch operations" />
-                <div id="lblFolder"></div>
-            </div>
             <textarea id="txtInput" spellcheck="false" class="txtIn txtPanel txt"></textarea>
             <tab-strip id="tbInput"></tab-strip>
         </div>

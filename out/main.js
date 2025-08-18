@@ -17,7 +17,6 @@ export class Workspace {
         this._inputTabValues = {};
         this._outputTabs = {};
         this._tabStreams = {};
-        this._lblFile = document.querySelector("#lblFile");
         this._ctlCommand = document.querySelector("#cmdMain");
         this._ctlSidebar = document.querySelector("#sidebar");
         this._btCopy = document.querySelector("#btCopyToClip");
@@ -285,10 +284,7 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            if (this._inputTabValues[this._selectedInput].tab == this._mainInputTab) {
-                this._fileName = file.name;
-                this._lblFile.textContent = "Hefe - " + file.name;
-            }
+            this._inputTabValues[this._selectedInput].tab.name = file.name;
             this.process();
         };
         reader.readAsText(file);
@@ -330,7 +326,7 @@ export class Workspace {
             }
             const input = {
                 text: this.getVariableValue(INPUT),
-                fileName: this._fileName ?? "[temp file]",
+                fileName: this._selectedInput,
                 variables: inVars,
                 folder: this._selectFolder,
             };

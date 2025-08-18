@@ -18,7 +18,6 @@ export class Workspace {
     public DebugLine: number = 99999999;
     public ErrorLine: number = 99999999;
     
-    private _lblFile : HTMLHeadingElement;
     private _lblError : HTMLHeadingElement;
     private _btCopy : HTMLInputElement;
     private _txtInput : HTMLTextAreaElement;
@@ -30,8 +29,6 @@ export class Workspace {
 
     private _btFolder : HTMLButtonElement;
     private _selectFolder : FileSystemDirectoryHandle;
-
-    private _fileName: string;
 
     private _selectedScript: Script;
     private _loadedScripts: Script[] = [];
@@ -51,7 +48,6 @@ export class Workspace {
 
     public constructor()
     {
-        this._lblFile = document.querySelector("#lblFile");
         this._ctlCommand = document.querySelector("#cmdMain");
         this._ctlSidebar = document.querySelector("#sidebar");
 
@@ -325,10 +321,7 @@ export class Workspace {
         let reader = new FileReader();
         reader.onload = ev => {
             target.value = reader.result.toString();
-            if(this._inputTabValues[this._selectedInput].tab == this._mainInputTab){
-                this._fileName = file.name;
-                this._lblFile.textContent = "Hefe - " + file.name;
-            }
+            this._inputTabValues[this._selectedInput].tab.name = file.name;
             this.process();
         };
         reader.readAsText(file);
@@ -372,7 +365,7 @@ export class Workspace {
             }
             const input = {
                 text: this.getVariableValue(INPUT),
-                fileName: this._fileName ?? "[temp file]",
+                fileName: this._selectedInput,
                 variables: inVars,
                 folder: this._selectFolder,
             }
