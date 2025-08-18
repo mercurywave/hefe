@@ -268,4 +268,53 @@ regFunc("reSplit", 1, 2, ["regExp"], async (c, stream, pars) => {
         throw new Error(`regex error: ${e}`);
     }
 });
+regFunc("getFiles", 0, 0, [], async (c, stream, pars) => {
+    try {
+        let folder = c.selectedFolder;
+        const fileNames = [];
+        if (folder) {
+            for await (const [name, handle] of folder.entries()) {
+                if (handle.kind === 'file') {
+                    fileNames.push(Stream.mkText(name));
+                }
+            }
+        }
+        else {
+            for (const [name, value] of Object.entries(c.originalInput.variables)) {
+                fileNames.push(Stream.mkText(name));
+            }
+        }
+        return Stream.mkArr(fileNames);
+    }
+    catch (e) {
+        throw new Error(`getFilesInFolder: ${e}`);
+    }
+});
+regFunc("loadFile", 0, 0, [], async (c, stream, pars) => {
+    try {
+        return await getFileTextOrInput(c, stream.asString());
+    }
+    catch (e) {
+        throw new Error(`getFilesInFolder: ${e}`);
+    }
+});
+async function getFileTextOrInput(c, fileName) {
+    let folder = c.selectedFolder;
+    if (folder) {
+        let handle = await folder.getFileHandle(fileName);
+        let content = await handle?.getFile();
+        if (content) {
+            let text = await content.text();
+            return Stream.mkText(text);
+        }
+    }
+    else {
+        for (const [name, value] of Object.entries(c.originalInput.variables)) {
+            if (name === fileName) {
+                return Stream.mkText(value);
+            }
+        }
+    }
+    return Stream.mkText("");
+}
 //# sourceMappingURL=stdlib.js.map

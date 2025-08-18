@@ -2,7 +2,7 @@ import { ICanHaveScope, Parser, SExit, SNoop } from "./parser.js";
 import { Stream } from "./stream.js";
 export class Interpreter {
     static async Process(input, parse, debugLine) {
-        let state = new InterpreterState(Stream.mkText(input.text), parse.Statements, parse.functionDefs, debugLine);
+        let state = new InterpreterState(Stream.mkText(input.text), parse.Statements, parse.functionDefs, debugLine, input);
         state.setGlobalVal("fileName", Stream.mkText(input.fileName));
         for (const key in input.variables) {
             state.setGlobalVal(key, Stream.mkText(input.variables[key]));
@@ -74,7 +74,7 @@ export class Interpreter {
     }
     static async RunUserFunction(context, func, params, stream) {
         let interpreter = context.__state;
-        let state = new InterpreterState(stream, func.code, interpreter.functionDefs, interpreter.__debugLine);
+        let state = new InterpreterState(stream, func.code, interpreter.functionDefs, interpreter.__debugLine, interpreter.__inputContext);
         for (let index = 0; index < params.length; index++) {
             state.setGlobalVal(func.params[index], params[index]);
         }
@@ -113,6 +113,8 @@ export class ExecutionContext {
     }
     get stream() { return this.leafNode.stream; }
     get leafNode() { return this.__currBranch[this.__currBranch.length - 1]; }
+    get selectedFolder() { return this.__state.selectedFolder; }
+    get originalInput() { return this.__state.__inputContext; }
     updateStream(stream) {
         var stack = this.leafNode;
         stack.stream = stream;
@@ -135,7 +137,8 @@ export class InterpreterState {
     get currStatement() { return this.__code[this.statementLine]; }
     get nextStatement() { return this.__code[this.statementLine + 1]; }
     get currFileLine() { return this.currStatement.fileLine; }
-    constructor(stream, code, funcs, debugLine) {
+    get selectedFolder() { return this.__inputContext.folder; }
+    constructor(stream, code, funcs, debugLine, input) {
         this.__code = [];
         this.__scopes = [null];
         this.statementLine = 0;
@@ -145,6 +148,7 @@ export class InterpreterState {
         this.__code = code;
         this.functionDefs = funcs;
         this.__debugLine = debugLine;
+        this.__inputContext = input;
     }
     get depth() { return this.__scopes.length; }
     foreachExecution(action, depth) {
