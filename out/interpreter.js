@@ -11,23 +11,46 @@ export class Interpreter {
         let currGen = this.__gen;
         while (state.statementLine < state.__code.length) {
             if (state.currFileLine > state.__debugLine) {
-                return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
+                return { output: state.exportAsStream(),
+                    variables: state.exportVariables(),
+                    step: state.statementLine,
+                    isComplete: true,
+                    sideOutputs: state.exportSideOutputs() };
             }
             try {
                 let canGo = await Interpreter.RunOneLine(state);
                 if (!canGo) {
-                    return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
+                    return {
+                        output: state.exportAsStream(),
+                        variables: state.exportVariables(),
+                        step: state.statementLine,
+                        isComplete: true,
+                        sideOutputs: state.exportSideOutputs()
+                    };
                 }
             }
             catch (err) {
-                return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: false, error: new LineError(err, state.currFileLine) };
+                return {
+                    output: state.exportAsStream(),
+                    variables: state.exportVariables(),
+                    step: state.statementLine,
+                    isComplete: false,
+                    error: new LineError(err, state.currFileLine),
+                    sideOutputs: state.exportSideOutputs()
+                };
             }
             if (currGen != this.__gen)
                 return null;
             state.statementLine++;
         }
         await state.wrapUp();
-        return { output: state.exportAsStream(), variables: state.exportVariables(), step: state.statementLine, isComplete: true };
+        return {
+            output: state.exportAsStream(),
+            variables: state.exportVariables(),
+            step: state.statementLine,
+            isComplete: true,
+            sideOutputs: state.exportSideOutputs(),
+        };
     }
     static async RunOneLine(state) {
         let step = state.__code[state.statementLine];
@@ -132,6 +155,9 @@ export class ExecutionContext {
     }
     set scratch(value) { this.leafNode.__scratch = value; }
     get scratch() { return this.leafNode.__scratch; }
+    saveSideOut(name, value) {
+        this.leafNode.sideOutputs.push([name, value]);
+    }
 }
 export class InterpreterState {
     get currStatement() { return this.__code[this.statementLine]; }
@@ -194,6 +220,9 @@ export class InterpreterState {
             const branches = leaf.branches.map(b => b.stream);
             let result = await owner.onCloseChildScope(context, branches);
             context.updateStream(result);
+            for (const b of leaf.__branches)
+                for (const out of b.sideOutputs)
+                    leaf.sideOutputs.push(out);
             leaf.branches = null;
         }
     }
@@ -234,6 +263,13 @@ export class InterpreterState {
         }
         return baseVars;
     }
+    exportSideOutputs() {
+        let outputs = [];
+        this.foreachChain((c, l) => {
+            outputs = outputs.concat(l.sideOutputs);
+        });
+        return outputs;
+    }
     setGlobalVal(name, value) {
         this.__root.set(name, value);
     }
@@ -242,6 +278,7 @@ class StackBranch {
     constructor(stream, index) {
         this.__scratch = null;
         this.variables = {};
+        this.sideOutputs = [];
         this.__stream = stream;
         this.index = index;
     }

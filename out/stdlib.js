@@ -268,6 +268,21 @@ regFunc("reSplit", 1, 2, ["regExp"], async (c, stream, pars) => {
         throw new Error(`regex error: ${e}`);
     }
 });
+regFunc("sideOutput", 0, 1, ["name"], async (c, stream, pars) => {
+    let name = "";
+    if (pars.length > 0)
+        name = (await pars[0].Eval(c, stream)).asString();
+    try {
+        const invalidChars = /[\\\/:*?"<>|\n\r\t]/; // disallow common problem characters
+        if (invalidChars.test(name))
+            throw new Error(`${name} is not a valid file name`);
+        c.saveSideOut(name, stream);
+        return stream;
+    }
+    catch (e) {
+        throw new Error(`sideOutput: ${e}`);
+    }
+});
 regFunc("getFiles", 0, 0, [], async (c, stream, pars) => {
     try {
         let folder = c.selectedFolder;

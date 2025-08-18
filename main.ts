@@ -382,13 +382,39 @@ export class Workspace {
                 outVars = outVars.filter(v => v != "fileName" && inVars[v] == null); // not useful
                 outVars.push(STREAM);
 
+                let uniqCounter: Record<string, number> = {};
+                let vTabs: Record<string, Stream> = {};
+
+                let getName = (name: string):string => {
+                    // make sure names are unique for side outputs
+                    if(name in uniqCounter) {
+                        uniqCounter[name]++;
+                        return `${name} [${uniqCounter[name]}]`;
+                    }
+                    uniqCounter[name] = 0;
+                    return name;
+                };
+
+                let addTab = (name: string, stream: Stream) => {
+                    let fixName = getName(name);
+                    if(this._outputTabs[fixName] == null){
+                        this._outputTabs[fixName] = this._tbOutput.addTab(fixName,fixName);
+                    }
+                    vTabs[fixName] = stream;
+                }
+
+                addTab(STREAM, res.output);
                 for (const v of outVars) {
-                    if(this._outputTabs[v] == null){
-                        this._outputTabs[v] = this._tbOutput.addTab(v,v);
+                    if(v !== STREAM){
+                        addTab(v, res.variables[v]);
                     }
                 }
+                for(const [name, stream] of res.sideOutputs){
+                    addTab(name, stream);
+                }
+
                 for (const v of Object.keys(this._outputTabs)) {
-                    if(!outVars.find(k => k == v)){
+                    if(!(v in vTabs)){
                         this._tbOutput.removeTab(this._outputTabs[v]);
                         delete this._outputTabs[v];
                     }
@@ -399,13 +425,8 @@ export class Workspace {
                     this._tbOutput.selectTab(this._outputTabs[STREAM]);
                 }
 
-                if(this._selectedOutput == STREAM){
-                    this._txtOutput.stream = res.output;
-                }
-                else {
-                    this._txtOutput.stream = res.variables[this._selectedOutput];
-                }
-
+                this._txtOutput.stream = vTabs[this._selectedOutput];
+                
                 if(res?.error)
                     this.ShowError(res.error);
                 else {

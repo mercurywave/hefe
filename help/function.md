@@ -196,6 +196,9 @@ This subroutine simply passes through the input and outputs the work of the inne
 ### exit
 Halts script execution immediately, similar to entering debug mode on a line.
 
+### sideOutput(name?)
+Takes the current stream as-is and saves it to an output tab, with an optional name.
+
 ### getFiles
 Load the name of every file in the current folder as an array. Select the folder you want to load using the Load Folder button.
 
