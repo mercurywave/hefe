@@ -1,7 +1,7 @@
 import { Autocomplete } from "./code-input/auto-complete.js";
 import { CodeInput, Template } from "./code-input/code-input.js";
 import { eCommandType } from "./command.js";
-import { Interpreter, LineError } from "./interpreter.js";
+import { Interpreter, LineError, VirtualFolder } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 import { Parser } from "./parser.js";
 import "./stdlib.js";
@@ -23,6 +23,8 @@ export class Workspace {
         this._btCopy.addEventListener("click", () => this._txtOutput.copyToClipboard());
         this._btFolder = document.querySelector("#btFolder");
         this._btFolder.addEventListener("click", () => this.selectFolder());
+        this._btFiles = document.querySelector("#btFiles");
+        this._btFiles.addEventListener("click", () => this.selectFiles());
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(), 0); });
         this._ctlCommand.addEventListener("onHide", () => { setTimeout(() => this._txtEditor.rawTextArea.focus(), 0); });
@@ -328,7 +330,7 @@ export class Workspace {
                 text: this.getVariableValue(INPUT),
                 fileName: this._selectedInput,
                 variables: inVars,
-                folder: this._selectFolder,
+                folder: new VirtualFolder(this._selectFolder, this._selectedFiles),
             };
             let res = await Interpreter.Process(input, parse, debugLine);
             if (res != null) {
@@ -401,11 +403,31 @@ export class Workspace {
         console.log("error:", err);
         this._lblError.textContent = err.message;
     }
+    async selectFiles() {
+        try {
+            // Show file picker (requires browser support)
+            this._selectedFiles = await window.showOpenFilePicker({
+                multiple: true,
+            }); // TODO: ts rejects type checking? Also, do something in unsupported browsers
+            if (this._selectedFiles) {
+                document.querySelector("#lblFolder").textContent = `\\[${this._selectedFiles.length} files]`;
+                this._selectFolder = null;
+            }
+            this.process();
+        }
+        catch (err) {
+            this.ShowError(err);
+        }
+        this.updateAutoState();
+    }
     async selectFolder() {
         try {
             // Show folder picker (requires browser support)
             this._selectFolder = await window.showDirectoryPicker(); // TODO: ts rejects type checking? Also, do something in unsupported browsers
-            document.querySelector("#lblFolder").textContent = "\\" + this._selectFolder.name;
+            if (this._selectFolder) {
+                document.querySelector("#lblFolder").textContent = "\\" + this._selectFolder.name;
+                this._selectedFiles = null;
+            }
             this.process();
         }
         catch (err) {
@@ -415,7 +437,7 @@ export class Workspace {
     }
     updateAutoState() {
         let chkAuto = document.querySelector("#chkAuto");
-        if (this._selectFolder) {
+        if (this._selectFolder || this._selectedFiles) {
             chkAuto.checked = false;
             chkAuto.disabled = true;
         }

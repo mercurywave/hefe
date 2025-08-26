@@ -1,7 +1,7 @@
 import { Autocomplete } from "./code-input/auto-complete.js";
 import { CodeInput, Template } from "./code-input/code-input.js";
 import { CommandPalette, eCommandType } from "./command.js";
-import { Interpreter, LineError } from "./interpreter.js";
+import { Interpreter, LineError, VirtualFolder } from "./interpreter.js";
 import { eTokenType, Lexer } from "./Lexer.js";
 import { StreamDisplay } from "./output.js";
 import { Parser } from "./parser.js";
@@ -28,7 +28,9 @@ export class Workspace {
     private _tbEditor : TabStrip;
 
     private _btFolder : HTMLButtonElement;
+    private _btFiles : HTMLButtonElement;
     private _selectFolder : FileSystemDirectoryHandle;
+    private _selectedFiles : FileSystemFileHandle[];
 
     private _selectedScript: Script;
     private _loadedScripts: Script[] = [];
@@ -56,6 +58,9 @@ export class Workspace {
 
         this._btFolder = document.querySelector("#btFolder");
         this._btFolder.addEventListener("click", () => this.selectFolder());
+
+        this._btFiles = document.querySelector("#btFiles");
+        this._btFiles.addEventListener("click", () => this.selectFiles());
 
         let btHelp = document.querySelector("#btHelp");
         btHelp.addEventListener("click", () => { setTimeout(() => this._ctlCommand.show(),0); } );
@@ -367,7 +372,7 @@ export class Workspace {
                 text: this.getVariableValue(INPUT),
                 fileName: this._selectedInput,
                 variables: inVars,
-                folder: this._selectFolder,
+                folder: new VirtualFolder(this._selectFolder, this._selectedFiles),
             }
             let res = await Interpreter.Process(input, parse, debugLine);
             if(res != null)
@@ -449,11 +454,32 @@ export class Workspace {
         this._lblError.textContent = err.message;
     }
 
+    private async selectFiles() {
+        try {
+            // Show file picker (requires browser support)
+            this._selectedFiles = await (window as any).showOpenFilePicker({
+                multiple: true,
+            }); // TODO: ts rejects type checking? Also, do something in unsupported browsers
+            if(this._selectedFiles) {
+                document.querySelector("#lblFolder").textContent = `\\[${this._selectedFiles.length} files]`;
+                this._selectFolder = null;
+            }
+            this.process();
+        } catch (err) {
+            this.ShowError(err);
+        }
+        this.updateAutoState();
+
+    }
+
     private async selectFolder() {
         try {
             // Show folder picker (requires browser support)
             this._selectFolder = await (window as any).showDirectoryPicker(); // TODO: ts rejects type checking? Also, do something in unsupported browsers
-            document.querySelector("#lblFolder").textContent = "\\" + this._selectFolder.name;
+            if(this._selectFolder) {
+                document.querySelector("#lblFolder").textContent = "\\" + this._selectFolder.name;
+                this._selectedFiles = null;
+            }
             this.process();
         } catch (err) {
             this.ShowError(err);
@@ -463,7 +489,7 @@ export class Workspace {
 
     private updateAutoState(){
         let chkAuto = document.querySelector("#chkAuto") as HTMLInputElement;
-        if(this._selectFolder){
+        if(this._selectFolder || this._selectedFiles){
             chkAuto.checked = false;
             chkAuto.disabled = true;
         }

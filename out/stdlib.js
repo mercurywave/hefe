@@ -288,7 +288,7 @@ regFunc("getFiles", 0, 0, [], async (c, stream, pars) => {
         let folder = c.selectedFolder;
         const fileNames = [];
         if (folder) {
-            for await (const [name, handle] of folder.entries()) {
+            for (const [name, handle] of await folder.entries()) {
                 if (handle.kind === 'file') {
                     fileNames.push(Stream.mkText(name));
                 }

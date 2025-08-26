@@ -304,4 +304,28 @@ export class LineError extends Error {
         this.Line = line;
     }
 }
+export class VirtualFolder {
+    constructor(folder, files) {
+        this._selectFolder = folder;
+        this._selectedFiles = files;
+    }
+    async entries() {
+        if (this._selectFolder) {
+            let arr = [];
+            for await (const [name, handle] of this._selectFolder.entries())
+                arr.push([name, handle]);
+            return arr;
+        }
+        if (this._selectedFiles)
+            return this._selectedFiles.map(handle => [handle.name, handle]);
+        throw 'Virtual folder is empty?';
+    }
+    async getFileHandle(name) {
+        if (this._selectFolder)
+            return await this._selectFolder.getFileHandle(name);
+        if (this._selectedFiles)
+            return this._selectedFiles.find(h => h.name === name);
+        return null;
+    }
+}
 //# sourceMappingURL=interpreter.js.map

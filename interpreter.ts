@@ -7,7 +7,7 @@ export interface InputContext{
     text: string;
     fileName: string;
     variables: Record<string, string>;
-    folder: FileSystemDirectoryHandle | null;
+    folder: VirtualFolder | null;
 }
 
 export class Interpreter{
@@ -152,7 +152,7 @@ export class ExecutionContext{
 
     public get stream(): Stream { return this.leafNode.stream;}
     public get leafNode(): StackBranch { return this.__currBranch[this.__currBranch.length - 1]; }
-    public get selectedFolder(): FileSystemDirectoryHandle | null { return this.__state.selectedFolder; }
+    public get selectedFolder(): VirtualFolder | null { return this.__state.selectedFolder; }
     public get originalInput(): InputContext { return this.__state.__inputContext; }
 
     public updateStream(stream: Stream){
@@ -190,7 +190,7 @@ export class InterpreterState{
     public get currStatement(): IStatement | null { return this.__code[this.statementLine]; }
     public get nextStatement(): IStatement | null { return this.__code[this.statementLine + 1]; }
     public get currFileLine(): number { return this.currStatement.fileLine; }
-    public get selectedFolder(): FileSystemDirectoryHandle | null { return this.__inputContext.folder; }
+    public get selectedFolder(): VirtualFolder | null { return this.__inputContext.folder; }
 
     public constructor(stream: Stream, code: IStatement[], funcs: Record<string, SFunctionDef>, debugLine: number, input: InputContext){
         this.__root = new StackBranch(stream, 0);
@@ -336,5 +336,33 @@ export class LineError extends Error{
     constructor(msg:string, line: number){
         super(msg);
         this.Line = line;
+    }
+}
+
+export class VirtualFolder {
+    private _selectFolder? : FileSystemDirectoryHandle;
+    private _selectedFiles? : FileSystemFileHandle[];
+    public constructor(folder? : FileSystemDirectoryHandle, files? : FileSystemFileHandle[]){
+        this._selectFolder = folder;
+        this._selectedFiles = files;
+    }
+    public async entries() : Promise<[string, FileSystemHandle][]>{
+        if(this._selectFolder)
+        {
+            let arr : [string, FileSystemHandle][] = [];
+            for await(const [name, handle] of this._selectFolder.entries())
+                arr.push([name, handle]);
+            return arr;
+        }
+        if(this._selectedFiles)
+            return this._selectedFiles.map(handle => [handle.name, handle]);
+        throw 'Virtual folder is empty?';
+    }
+    public async getFileHandle(name: string): Promise<FileSystemFileHandle>{
+        if(this._selectFolder)
+            return await this._selectFolder.getFileHandle(name);
+        if(this._selectedFiles)
+            return this._selectedFiles.find(h => h.name === name);
+        return null;
     }
 }
